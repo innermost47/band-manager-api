@@ -1,5 +1,6 @@
 parameters:
-  audio_upload_directory: "%kernel.project_dir%/public/uploads/audio"
+  audio_upload_directory: "%kernel.project_dir%/var/uploads/private/audio"
+  project_images_directory: "%kernel.project_dir%/var/uploads/private/project_images"
   issued_by: "%env(ISSUED_BY)%"
   permitted_for: "%env(PERMITTED_FOR)%"
   mailer_from: "%env(MAILER_FROM)%"

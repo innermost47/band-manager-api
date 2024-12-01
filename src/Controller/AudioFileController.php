@@ -9,7 +9,6 @@ use App\Repository\SongRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\File\Exception\FileException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\Routing\Annotation\Route;
@@ -136,7 +135,7 @@ class AudioFileController extends AbstractController
             } catch (FileException $e) {
                 return $this->json(['error' => 'Failed to upload file'], JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
             }
-            $relativePath = str_replace($this->getParameter('kernel.project_dir') . '/public/', '', $uploadDirectory . '/' . $newFilename);
+            $relativePath = str_replace($this->getParameter('kernel.project_dir') . '/var/uploads/private/', '', $uploadDirectory . '/' . $newFilename);
             $audioFile = new AudioFile();
             $audioFile->setSong($song);
             $audioFile->setFilename($newFilename);
@@ -190,25 +189,6 @@ class AudioFileController extends AbstractController
     }
 
 
-    #[Route('/download/{id}', name: 'download', methods: ['GET'])]
-    public function download(int $id): Response
-    {
-        $audioFile = $this->audioFileRepository->find($id);
-
-        if (!$audioFile) {
-            return $this->json(['error' => 'File not found'], JsonResponse::HTTP_NOT_FOUND);
-        }
-
-        $filePath = $audioFile->getPath();
-
-        if (!file_exists($filePath)) {
-            return $this->json(['error' => 'File does not exist on the server'], JsonResponse::HTTP_NOT_FOUND);
-        }
-
-        return new BinaryFileResponse($filePath);
-    }
-
-
     #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
     public function delete(int $id): JsonResponse
     {
@@ -218,8 +198,7 @@ class AudioFileController extends AbstractController
             return $this->json(['error' => 'File not found'], JsonResponse::HTTP_NOT_FOUND);
         }
 
-        $filePath = $audioFile->getPath();
-
+        $filePath = $this->getParameter('kernel.project_dir') . '/var/uploads/private/' . $audioFile->getPath();
         if (file_exists($filePath)) {
             unlink($filePath);
         }

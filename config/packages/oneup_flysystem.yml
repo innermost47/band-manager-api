@@ -1,0 +1,20 @@
+# config/packages/oneup_flysystem.yaml
+
+oneup_flysystem:
+  adapters:
+    public_uploads_adapter:
+      filesystem: "public"
+      path_prefix: "/uploads"
+      visibility: public
+    private_uploads_adapter:
+      filesystem: "private"
+      path_prefix: "/uploads/private"
+      visibility: private
+
+  filesystems:
+    public:
+      adapter: "public_uploads_adapter"
+      alias: "public_uploads"
+    private:
+      adapter: "private_uploads_adapter"
+      alias: "private_uploads"

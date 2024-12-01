@@ -34,9 +34,20 @@ class Project
     #[Groups(['project'])]
     private Collection $songs;
 
+    #[ORM\Column(length: 255, nullable: true)]
+    #[Groups(['project'])]
+    private ?string $profileImage = null;
+
+    /**
+     * @var Collection<int, Gallery>
+     */
+    #[ORM\OneToMany(targetEntity: Gallery::class, mappedBy: 'project')]
+    private Collection $galleries;
+
     public function __construct()
     {
         $this->songs = new ArrayCollection();
+        $this->galleries = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -92,6 +103,48 @@ class Project
             // set the owning side to null (unless already changed)
             if ($song->getProject() === $this) {
                 $song->setProject(null);
+            }
+        }
+
+        return $this;
+    }
+
+    public function getProfileImage(): ?string
+    {
+        return $this->profileImage;
+    }
+
+    public function setProfileImage(?string $profileImage): static
+    {
+        $this->profileImage = $profileImage;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Gallery>
+     */
+    public function getGalleries(): Collection
+    {
+        return $this->galleries;
+    }
+
+    public function addGallery(Gallery $gallery): static
+    {
+        if (!$this->galleries->contains($gallery)) {
+            $this->galleries->add($gallery);
+            $gallery->setProject($this);
+        }
+
+        return $this;
+    }
+
+    public function removeGallery(Gallery $gallery): static
+    {
+        if ($this->galleries->removeElement($gallery)) {
+            // set the owning side to null (unless already changed)
+            if ($gallery->getProject() === $this) {
+                $gallery->setProject(null);
             }
         }
 

@@ -25,5 +25,7 @@
 .env
 public/uploads/audio/*
 !public/uploads/audio/.gitkeep
+public/uploads/project_images/*
+!public/uploads/project_images/.gitkeep
 config/jwt/*
 !config/jwt/.gitkeep

@@ -39,24 +39,69 @@ class ProjectController extends AbstractController
         return $this->json($projects, JsonResponse::HTTP_OK, [], ['groups' => 'project']);
     }
 
+    #[Route('/profile-image/{id}', name: 'get_profile_image', methods: ['GET'])]
+    public function getProfileImage(int $id)
+    {
+        $project = $this->repository->find($id);
+        if (!$project) {
+            return $this->json(['error' => 'Project not found'], JsonResponse::HTTP_NOT_FOUND);
+        }
+        $profileImagePath = $project->getProfileImage();
+
+        if (!$profileImagePath) {
+            return $this->json(['error' => 'Profile image not found'], JsonResponse::HTTP_NOT_FOUND);
+        }
+        $profileImageFullPath = $this->getParameter('project_images_directory') . '/' . $profileImagePath;
+        if (!file_exists($profileImageFullPath)) {
+            return $this->json(['error' => 'Image file does not exist'], JsonResponse::HTTP_NOT_FOUND);
+        }
+        return $this->file($profileImageFullPath);
+    }
+
+
     #[Route('/{id}', name: 'show', methods: ['GET'])]
     public function show(int $id): JsonResponse
     {
         $project = $this->repository->find($id);
-
         if (!$project) {
             return $this->json(['error' => 'Project not found'], JsonResponse::HTTP_NOT_FOUND);
         }
-
         $songs = $this->songRepository->findBy(['project' => $project]);
-
         $data = [
             'project' => $project,
             'songs' => $songs,
         ];
-
         return $this->json($data, JsonResponse::HTTP_OK, [], ['groups' => ['project', 'song']]);
     }
+
+    #[Route('/update-profile-image', name: 'update_profile_image', methods: ['POST'])]
+    public function uploadProfileImage(Request $request)
+    {
+        $projectId = $request->get('project_id');
+        if (!$projectId) {
+            return $this->json(['error' => 'Missing project_id'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+        $project = $this->repository->find($projectId);
+        if (!$project) {
+            return $this->json(['error' => 'Project not found'], JsonResponse::HTTP_NOT_FOUND);
+        }
+        $file = $request->files->get('profile_image');
+        if (!$file) {
+            return $this->json(['error' => 'No file uploaded'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+        $filename = uniqid() . '.' . $file->guessExtension();
+        try {
+            $file->move($this->getParameter('project_images_directory'), $filename);
+            $project->setProfileImage($filename);
+            $this->entityManager->flush();
+
+            return $this->json(['message' => 'Image uploaded successfully'], JsonResponse::HTTP_OK);
+        } catch (\Exception $e) {
+            return $this->json(['error' => 'File upload failed'], JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+
 
     #[Route('', name: 'create', methods: ['POST'])]
     public function create(Request $request): JsonResponse

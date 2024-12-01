@@ -21,3 +21,4 @@ security:
         - App\Security\JwtAuthenticator
   access_control:
     - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
+    - { path: ^/audio, roles: IS_AUTHENTICATED_FULLY }
