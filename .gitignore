@@ -1,4 +1,3 @@
-
 ###> symfony/framework-bundle ###
 /.env.local
 /.env.local.php
@@ -23,3 +22,8 @@
 /public/assets/
 /assets/vendor/
 ###< symfony/asset-mapper ###
+.env
+public/uploads/audio/*
+!public/uploads/audio/.gitkeep
+config/jwt/*
+!config/jwt/.gitkeep
