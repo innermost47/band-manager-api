@@ -76,7 +76,7 @@ class LoginController
             return new JsonResponse(['message' => 'Verification code sent to your email.'], JsonResponse::HTTP_OK);
         }
 
-        $token = $this->jwtService->createToken($user);
+        $token = $this->jwtService->createToken($user->getEmail());
         return new JsonResponse(['token' => $token], JsonResponse::HTTP_OK);
     }
 
@@ -99,7 +99,7 @@ class LoginController
             return new JsonResponse(['error' => 'Code expired'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
-        $token = $this->jwtService->createToken($user);
+        $token = $this->jwtService->createToken($user->getEmail());
 
 
         $user->setTwoFactorCode(null);

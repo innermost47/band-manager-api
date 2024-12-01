@@ -3,7 +3,6 @@
 namespace App\Service;
 
 use Lcobucci\JWT\Configuration;
-use App\Entity\User;
 use Lcobucci\JWT\Signer\Key\InMemory;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 
@@ -23,7 +22,7 @@ class JwtService
         );
     }
 
-    public function createToken(User $user): string
+    public function createToken($email): string
     {
         $now = new \DateTimeImmutable();
         $issuedBy = $this->params->get('issued_by');
@@ -35,7 +34,7 @@ class JwtService
             ->issuedAt($now)
             ->canOnlyBeUsedAfter($now)
             ->expiresAt($now->modify('+2 hours'))
-            ->withClaim('email', $user->getEmail())
+            ->withClaim('email', $email)
             ->getToken($this->jwtConfig->signer(), $this->jwtConfig->signingKey());
 
         return $token->toString();
