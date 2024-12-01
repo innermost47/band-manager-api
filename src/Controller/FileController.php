@@ -39,6 +39,20 @@ class FileController extends AbstractController
         return new BinaryFileResponse($filePath);
     }
 
+    #[Route("/profile-image/{filename}", name: 'profile_image_private', methods: ["GET"])]
+    public function serveProfileImage(string $filename): Response
+    {
+        if (!$this->getUser()) {
+            throw new AccessDeniedException("You must be logged in to access this file.");
+        }
+        $filePath = $this->uploadDir . "project_images/" . $filename;
+        $normalizedFilePath = realpath($filePath);
+        if ($normalizedFilePath === false || !$this->privateFilesystem->exists($normalizedFilePath)) {
+            throw $this->createNotFoundException("The requested file does not exist.");
+        }
+        return new BinaryFileResponse($filePath);
+    }
+
     #[Route('/audio/download/{id}', name: 'download_audio', methods: ['GET'])]
     public function downloadAudio(int $id): Response
     {

@@ -39,26 +39,6 @@ class ProjectController extends AbstractController
         return $this->json($projects, JsonResponse::HTTP_OK, [], ['groups' => 'project']);
     }
 
-    #[Route('/profile-image/{id}', name: 'get_profile_image', methods: ['GET'])]
-    public function getProfileImage(int $id)
-    {
-        $project = $this->repository->find($id);
-        if (!$project) {
-            return $this->json(['error' => 'Project not found'], JsonResponse::HTTP_NOT_FOUND);
-        }
-        $profileImagePath = $project->getProfileImage();
-
-        if (!$profileImagePath) {
-            return $this->json(['error' => 'Profile image not found'], JsonResponse::HTTP_NOT_FOUND);
-        }
-        $profileImageFullPath = $this->getParameter('project_images_directory') . '/' . $profileImagePath;
-        if (!file_exists($profileImageFullPath)) {
-            return $this->json(['error' => 'Image file does not exist'], JsonResponse::HTTP_NOT_FOUND);
-        }
-        return $this->file($profileImageFullPath);
-    }
-
-
     #[Route('/{id}', name: 'show', methods: ['GET'])]
     public function show(int $id): JsonResponse
     {
@@ -100,8 +80,6 @@ class ProjectController extends AbstractController
             return $this->json(['error' => 'File upload failed'], JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
-
-
 
     #[Route('', name: 'create', methods: ['POST'])]
     public function create(Request $request): JsonResponse
