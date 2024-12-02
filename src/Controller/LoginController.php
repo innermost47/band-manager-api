@@ -98,14 +98,10 @@ class LoginController
         if ($user->getTwoFactorCodeExpiresAt() < new \DateTimeImmutable()) {
             return new JsonResponse(['error' => 'Code expired'], JsonResponse::HTTP_UNAUTHORIZED);
         }
-
         $token = $this->jwtService->createToken($user->getEmail());
-
-
         $user->setTwoFactorCode(null);
         $user->setTwoFactorCodeExpiresAt(null);
         $this->userRepository->save($user);
-
         return new JsonResponse(['token' => $token], JsonResponse::HTTP_OK);
     }
 }
