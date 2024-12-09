@@ -6,8 +6,6 @@ use Lcobucci\JWT\Configuration;
 use Lcobucci\JWT\Signer\Key\InMemory;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Lcobucci\JWT\Token\Plain;
-use Lcobucci\JWT\Token\InvalidTokenStructure;
-use Lcobucci\JWT\Validation\ConstraintViolation;
 use Lcobucci\JWT\Validation\Constraint\SignedWith;
 use Lcobucci\JWT\Validation\Constraint\StrictValidAt;
 
@@ -25,7 +23,7 @@ class JwtService
             new \Lcobucci\JWT\Signer\Hmac\Sha256(),
             InMemory::plainText($secret)
         );
-        
+
         $this->jwtConfig->setValidationConstraints(
             new SignedWith($this->jwtConfig->signer(), $this->jwtConfig->signingKey()),
             new StrictValidAt(new \Lcobucci\Clock\SystemClock(new \DateTimeZone('UTC')))
@@ -54,7 +52,7 @@ class JwtService
     {
         return $this->jwtConfig;
     }
-    
+
     public function getEmailFromToken(string $token): ?string
     {
         try {
