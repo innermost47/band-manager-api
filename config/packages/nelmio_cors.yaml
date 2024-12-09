@@ -1,12 +1,17 @@
 nelmio_cors:
   defaults:
     allow_credentials: true
-    allow_origin: ["*"]
-    allow_headers: ["Content-Type", "Authorization", "X-Requested-With"]
+    allow_origin: ["https://bandmanager.anthony-charretier.fr", "http://localhost:3000"]
+    allow_headers: ["Content-Type", "Authorization", "X-Requested-With", "Range"]  
     allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     max_age: 3600
   paths:
     "^/api/":
-      allow_origin: ["*"]
-      allow_headers: ["Content-Type", "Authorization", "X-Requested-With"]
+      allow_origin: ["https://bandmanager.anthony-charretier.fr", "http://localhost:3000"]
+      allow_headers: ["Content-Type", "Authorization", "X-Requested-With", "Range"]
       allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    "^/stream/": 
+      allow_origin: ["https://bandmanager.anthony-charretier.fr", "http://localhost:3000"]
+      allow_headers: ["Content-Type", "Authorization", "X-Requested-With", "Range"]
+      allow_methods: ["GET", "OPTIONS"]
+

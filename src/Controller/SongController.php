@@ -17,6 +17,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 
 #[Route('/api/songs', name: 'song_')]
 class SongController extends AbstractController
@@ -29,6 +30,7 @@ class SongController extends AbstractController
     private $tablatureRepository;
     private $lyricsRepository;
     private $audioFileTypeRepository;
+    private $params;
 
     public function __construct(
         EntityManagerInterface $entityManager,
@@ -38,7 +40,8 @@ class SongController extends AbstractController
         ValidatorInterface $validator,
         TablatureRepository $tablatureRepository,
         LyricsRepository $lyricsRepository,
-        AudioFileTypeRepository $audioFileTypeRepository
+        AudioFileTypeRepository $audioFileTypeRepository,
+        ParameterBagInterface $params,
     ) {
         $this->entityManager = $entityManager;
         $this->songRepository = $songRepository;
@@ -48,42 +51,66 @@ class SongController extends AbstractController
         $this->tablatureRepository = $tablatureRepository;
         $this->lyricsRepository = $lyricsRepository;
         $this->audioFileTypeRepository = $audioFileTypeRepository;
+        $this->secretStreaming = $params->get("secret_streaming");
     }
-
-
-    #[Route('', name: 'list', methods: ['GET'])]
-    public function index(): JsonResponse
+    
+    private function verifyProjectAccess($project, $currentUser): bool
     {
-        $songs = $this->songRepository->findAll();
-
-        return $this->json($songs, JsonResponse::HTTP_OK, [], ['groups' => 'song']);
+        if (!$currentUser || !$project->getMembers()->contains($currentUser)) {
+            return false;
+        }
+        return true;
     }
 
     #[Route('/{id}', name: 'show', methods: ['GET'])]
     public function show(int $id): JsonResponse
     {
         $song = $this->songRepository->find($id);
-
+    
         if (!$song) {
             return $this->json(['error' => 'Song not found'], JsonResponse::HTTP_NOT_FOUND);
         }
-
+        
+        $currentUser = $this->getUser();
+        if(!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
+            return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
+        }
+    
         $audioFiles = $this->audioFileRepository->findBy(['song' => $song]);
         $tablatures = $this->tablatureRepository->findBy(['song' => $song]);
         $lyrics = $this->lyricsRepository->findBy(['song' => $song]);
         $audioFileTypes = $this->audioFileTypeRepository->findAll();
+        $audioData = [];
+        
+        foreach($audioFiles as $audioFile) {
+            $expiresAt = time() + 3600; 
+            $signature = hash_hmac('sha256', $audioFile->getId() . $expiresAt, $this->secretStreaming);
+            $signedUrl = 'stream/' . $audioFile->getId() . '?expires=' . $expiresAt . '&signature=' . $signature;
 
+           array_push($audioData, [
+                'id' => $audioFile->getId(),
+                'filename' => $audioFile->getFilename(),
+                'path' => $audioFile->getPath(),
+                'created_at' => $audioFile->getCreatedAt(),
+                'updated_at' => $audioFile->getUpdatedAt(),
+                'description' => $audioFile->getDescription(),
+                'audioFileType' => [
+                    'name' => $audioFile->getAudioFileType()->getName(),
+                ],
+                'signed_url' => $signedUrl,
+            ]);
+        }
+    
         $data = [
             'song' => $song,
-            'audioFiles' => $audioFiles,
+            'audioFiles' => $audioData,
             'tablatures' => $tablatures,
             'lyrics' => $lyrics,
             'audioFileTypes' => $audioFileTypes
         ];
-
+    
         return $this->json($data, JsonResponse::HTTP_OK, [], ['groups' => ['song', 'audioFile', 'tablature', 'lyrics', 'audioFileType']]);
     }
-
 
     #[Route('', name: 'create', methods: ['POST'])]
     public function create(Request $request): JsonResponse
@@ -101,16 +128,26 @@ class SongController extends AbstractController
         if (!isset($data['project_id'])) {
             return $this->json(['error' => 'Project ID is required'], JsonResponse::HTTP_BAD_REQUEST);
         }
+        
+        if (!isset($data['is_public'])) {
+            return $this->json(['error' => 'Is public is required'], JsonResponse::HTTP_BAD_REQUEST);
+        }
 
         $project = $this->projectRepository->find($data['project_id']);
         if (!$project) {
             return $this->json(['error' => 'Project not found'], JsonResponse::HTTP_NOT_FOUND);
+        }
+        
+        $currentUser = $this->getUser();
+        if(!$this->verifyProjectAccess($project, $currentUser)) {
+            return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $song = new Song();
         $song->setTitle(trim($data['title']));
         $song->setProject($project);
         $song->setCreatedAt(new \DateTimeImmutable());
+        $song->setPublic($data['is_public']);
 
         $errors = $this->validator->validate($song);
         if (count($errors) > 0) {
@@ -123,7 +160,6 @@ class SongController extends AbstractController
         return $this->json($song, JsonResponse::HTTP_CREATED, [], ['groups' => 'song']);
     }
 
-
     #[Route('/{id}', name: 'update', methods: ['PUT'])]
     public function update(Request $request, int $id): JsonResponse
     {
@@ -131,6 +167,11 @@ class SongController extends AbstractController
 
         if (!$song) {
             return $this->json(['error' => 'Song not found'], JsonResponse::HTTP_NOT_FOUND);
+        }
+        
+        $currentUser = $this->getUser();
+        if(!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
+            return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $data = json_decode($request->getContent(), true);
@@ -142,13 +183,13 @@ class SongController extends AbstractController
         if (isset($data['title']) && empty(trim($data['title']))) {
             return $this->json(['error' => 'Title cannot be empty'], JsonResponse::HTTP_BAD_REQUEST);
         }
-
-        if (isset($data['project_id'])) {
-            $project = $this->projectRepository->find($data['project_id']);
-            if (!$project) {
-                return $this->json(['error' => 'Project not found'], JsonResponse::HTTP_NOT_FOUND);
-            }
-            $song->setProject($project);
+        
+        if (isset($data['title'])) {
+            $song->setTitle($data['title']);
+        }
+        
+        if(isset($data['is_public'])) {
+            $song->setPublic($data['is_public']);
         }
 
         if (isset($data['bpm'])) {
@@ -161,7 +202,7 @@ class SongController extends AbstractController
         if (isset($data['scale'])) {
             $song->setScale(trim($data['scale']));
         }
-
+        
         if (isset($data['lyrics'])) {
             $lyrics = $this->lyricsRepository->findOneBy(['song' => $song]);
             if ($lyrics) {
@@ -176,7 +217,6 @@ class SongController extends AbstractController
             }
         }
 
-        $song->setTitle(isset($data['title']) ? trim($data['title']) : $song->getTitle());
         $song->setUpdatedAt(new \DateTimeImmutable());
 
         $errors = $this->validator->validate($song);
@@ -189,7 +229,6 @@ class SongController extends AbstractController
         return $this->json($song, JsonResponse::HTTP_OK, [], ['groups' => 'song']);
     }
 
-
     #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
     public function delete(int $id): JsonResponse
     {
@@ -197,6 +236,11 @@ class SongController extends AbstractController
 
         if (!$song) {
             return $this->json(['error' => 'Song not found'], JsonResponse::HTTP_NOT_FOUND);
+        }
+        
+        $currentUser = $this->getUser();
+        if(!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
+            return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $this->entityManager->remove($song);

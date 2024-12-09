@@ -31,24 +31,25 @@ class TablatureController extends AbstractController
         $this->songRepository = $songRepository;
         $this->validator = $validator;
     }
-
-    #[Route('', name: 'list', methods: ['GET'])]
-    public function index(): JsonResponse
+    
+    private function verifyProjectAccess($song): void
     {
-        $tablatures = $this->tablatureRepository->findAll();
+        $currentUser = $this->getUser();
+        $project = $song->getProject();
 
-        return $this->json($tablatures, JsonResponse::HTTP_OK, [], ['groups' => 'tablature']);
+        if (!$currentUser || !$project->getMembers()->contains($currentUser)) {
+            throw $this->createAccessDeniedException('Access denied to this project.');
+        }
     }
 
     #[Route('/{id}', name: 'show', methods: ['GET'])]
     public function show(int $id): JsonResponse
     {
         $tablature = $this->tablatureRepository->find($id);
-
         if (!$tablature) {
             return $this->json(['error' => 'Tablature not found'], JsonResponse::HTTP_NOT_FOUND);
         }
-
+        $this->verifyProjectAccess($tablature->getSong());
         return $this->json($tablature, JsonResponse::HTTP_OK, [], ['groups' => 'tablature']);
     }
 
@@ -56,13 +57,11 @@ class TablatureController extends AbstractController
     public function listBySong(int $songId): JsonResponse
     {
         $song = $this->songRepository->find($songId);
-
         if (!$song) {
             return $this->json(['error' => 'Song not found'], JsonResponse::HTTP_NOT_FOUND);
         }
-
-        $tablatures = $this->tablatureRepository->findBy(['song_id' => $songId]);
-
+        $this->verifyProjectAccess($song);
+        $tablatures = $this->tablatureRepository->findBy(['song' => $song]);
         return $this->json($tablatures, JsonResponse::HTTP_OK, [], ['groups' => 'tablature']);
     }
 
@@ -92,9 +91,11 @@ class TablatureController extends AbstractController
             return $this->json(['error' => 'Song not found'], JsonResponse::HTTP_NOT_FOUND);
         }
 
+        $this->verifyProjectAccess($song);
+
         $tablature = new Tablature();
         $tablature->setTitle(trim($data['title']));
-        $tablature->setContent(isset($data['content']) ? $data['content'] : null);
+        $tablature->setContent($data['content'] ?? null);
         $tablature->setInstrument(trim($data['instrument']));
         $tablature->setSong($song);
         $tablature->setCreatedAt(new \DateTimeImmutable());
@@ -119,6 +120,8 @@ class TablatureController extends AbstractController
             return $this->json(['error' => 'Tablature not found'], JsonResponse::HTTP_NOT_FOUND);
         }
 
+        $this->verifyProjectAccess($tablature->getSong());
+
         $data = json_decode($request->getContent(), true);
 
         if (!$data) {
@@ -129,9 +132,9 @@ class TablatureController extends AbstractController
             return $this->json(['error' => 'Title cannot be empty'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
-        $tablature->setTitle(isset($data['title']) ? trim($data['title']) : $tablature->getTitle());
-        $tablature->setContent(isset($data['content']) ? $data['content'] : $tablature->getContent());
-        $tablature->setInstrument(isset($data['instrument']) ? $data['instrument'] : $tablature->getInstrument());
+        $tablature->setTitle($data['title'] ?? $tablature->getTitle());
+        $tablature->setContent($data['content'] ?? $tablature->getContent());
+        $tablature->setInstrument($data['instrument'] ?? $tablature->getInstrument());
         $tablature->setUpdatedAt(new \DateTimeImmutable());
 
         $errors = $this->validator->validate($tablature);
@@ -152,6 +155,8 @@ class TablatureController extends AbstractController
         if (!$tablature) {
             return $this->json(['error' => 'Tablature not found'], JsonResponse::HTTP_NOT_FOUND);
         }
+
+        $this->verifyProjectAccess($tablature->getSong());
 
         $this->entityManager->remove($tablature);
         $this->entityManager->flush();

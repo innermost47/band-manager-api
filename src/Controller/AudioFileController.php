@@ -15,8 +15,13 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\HttpFoundation\Response;
 
-#[Route('/api/audio-files', name: 'audio_file_')]
+#[Route('', name: 'audio_file_')]
 class AudioFileController extends AbstractController
 {
     private $entityManager;
@@ -30,29 +35,38 @@ class AudioFileController extends AbstractController
         AudioFileRepository $audioFileRepository,
         SongRepository $songRepository,
         ValidatorInterface $validator,
-        AudioFileTypeRepository $audioFileTypeRepository
+        AudioFileTypeRepository $audioFileTypeRepository,
+        ParameterBagInterface $params
     ) {
         $this->entityManager = $entityManager;
         $this->audioFileRepository = $audioFileRepository;
         $this->songRepository = $songRepository;
         $this->validator = $validator;
         $this->audioFileTypeRepository = $audioFileTypeRepository;
+        $this->uploadDir = realpath($params->get('kernel.project_dir'))  . '/var/uploads/private/';
+        $this->secretStreaming = $params->get("secret_streaming");
     }
-
-    #[Route('', name: 'list', methods: ['GET'])]
-    public function index(): JsonResponse
+    
+    private function verifyProjectAccess($project, $currentUser): bool
     {
-        $audioFiles = $this->audioFileRepository->findAll();
-        return $this->json($audioFiles, JsonResponse::HTTP_OK, [], ['groups' => 'audio_file']);
+        if (!$currentUser || !$project->getMembers()->contains($currentUser)) {
+            return false;
+        }
+        return true;
     }
 
-    #[Route('/by-song/{songId}', name: 'list_by_song', methods: ['GET'])]
+    #[Route('/api/audio-files/by-song/{songId}', name: 'list_by_song', methods: ['GET'])]
     public function listBySong(int $songId): JsonResponse
     {
         $song = $this->songRepository->find($songId);
 
         if (!$song) {
             return $this->json(['error' => 'Song not found'], JsonResponse::HTTP_NOT_FOUND);
+        }
+        
+        $currentUser = $this->getUser();
+        if(!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
+            return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $audioFiles = $this->audioFileRepository->findBy(['song_id' => $songId]);
@@ -63,24 +77,105 @@ class AudioFileController extends AbstractController
 
         $fileMetadata = [];
         foreach ($audioFiles as $file) {
+            $expiresAt = time() + 3600; 
+            $signature = hash_hmac('sha256', $file->getId() . $expiresAt, $this->secretStreaming);
+            $signedUrl = 'stream-audio/' . $file->getId() . '?expires=' . $expiresAt . '&signature=' . $signature;
+
             $fileMetadata[] = [
                 'id' => $file->getId(),
                 'filename' => $file->getFilename(),
                 'path' => $file->getPath(),
                 'created_at' => $file->getCreatedAt(),
+                'signed_url' => $signedUrl,
             ];
         }
 
         return $this->json($fileMetadata, JsonResponse::HTTP_OK);
     }
+    
+    
+    #[Route('/stream/{fileId}', name: 'stream_audio', methods: ['GET'])]
+    public function streamAudio(int $fileId, Request $request): Response
+    {
 
-    #[Route('/by-song/{songId}/download/{fileId}', name: 'download_by_song', methods: ['GET'])]
+        $expires = $request->query->get('expires');
+        $signature = $request->query->get('signature');
+    
+        if (!$expires || !$signature || time() > $expires) {
+            return $this->json(['error' => 'Link expired or invalid'], JsonResponse::HTTP_FORBIDDEN);
+        }
+    
+        $expectedSignature = hash_hmac('sha256', $fileId . $expires, $this->secretStreaming);
+        if (!hash_equals($expectedSignature, $signature)) {
+            return $this->json(['error' => 'Invalid signature'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $file = $this->audioFileRepository->find($fileId);
+
+        if (!$file) {
+            return $this->json(['error' => 'File not found'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $filePath = $this->uploadDir . '/' . $file->getPath();
+        if (!file_exists($filePath)) {
+            return $this->json(['error' => 'File not found on server'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $fileSize = filesize($filePath);
+        $range = $request->headers->get('Range');
+
+        if ($range) {
+            list(, $range) = explode('=', $range, 2);
+            list($start, $end) = explode('-', $range, 2);
+
+            $start = (int) $start;
+            $end = $end === '' ? $fileSize - 1 : (int) $end;
+            $length = $end - $start + 1;
+
+            $response = new StreamedResponse(function () use ($filePath, $start, $length) {
+                $stream = fopen($filePath, 'rb');
+                fseek($stream, $start);
+                echo fread($stream, $length);
+                fclose($stream);
+            });
+
+            $response->headers->set('Content-Type', 'audio/mpeg');
+            $response->headers->set('Content-Range', "bytes $start-$end/$fileSize");
+            $response->headers->set('Content-Length', $length);
+            $response->headers->set('Accept-Ranges', 'bytes');
+            $response->headers->set('Cache-Control', 'no-cache, no-store, must-revalidate');
+            $response->headers->set('Expires', '0');
+            $response->headers->set('Access-Control-Allow-Origin', '*');
+            $response->headers->set('Access-Control-Allow-Methods', 'GET');
+            $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Range');
+            $response->setStatusCode(Response::HTTP_PARTIAL_CONTENT);
+
+            return $response;
+        }
+
+        $response = new BinaryFileResponse($filePath);
+        $response->setAutoEtag();
+        $response->headers->set('Content-Type', 'audio/mpeg');
+        $response->setContentDisposition(
+            ResponseHeaderBag::DISPOSITION_INLINE,
+            $file->getFilename()
+        );
+
+        return $response;
+    }
+
+    #[Route('/api/audio-files/by-song/{songId}/download/{fileId}', name: 'download_by_song', methods: ['GET'])]
     public function downloadBySong(int $songId, int $fileId): BinaryFileResponse
     {
         $song = $this->songRepository->find($songId);
 
         if (!$song) {
             throw $this->createNotFoundException('Song not found');
+        }
+        
+        $currentUser = $this->getUser();
+        if(!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
+            return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $audioFile = $this->audioFileRepository->find($fileId);
@@ -98,7 +193,7 @@ class AudioFileController extends AbstractController
         return new BinaryFileResponse($filePath);
     }
 
-    #[Route('/upload', name: 'upload', methods: ['POST'])]
+    #[Route('/api/audio-files/upload', name: 'upload', methods: ['POST'])]
     public function upload(Request $request): JsonResponse
     {
         $songId = $request->get('song_id');
@@ -110,6 +205,10 @@ class AudioFileController extends AbstractController
         $song = $this->songRepository->find($songId);
         if (!$song) {
             return $this->json(['error' => 'Song not found'], JsonResponse::HTTP_NOT_FOUND);
+        }
+        $currentUser = $this->getUser();
+        if(!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
+            return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
         $audioFileType = $this->audioFileTypeRepository->find($audioFileTypeId);
         if (!$audioFileType) {
@@ -129,7 +228,10 @@ class AudioFileController extends AbstractController
             }
             $originalFilename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
             $safeFilename = preg_replace('/[^a-zA-Z0-9-_]/', '_', $originalFilename);
-            $newFilename = $safeFilename . '-' . uniqid() . '.' . $file->guessExtension();
+            do {
+                $newFilename = $safeFilename . '-' . uniqid() . '.' . $file->guessExtension();
+                $targetFilePath = $uploadDirectory . '/' . $newFilename;
+            } while (file_exists($targetFilePath));
             try {
                 $file->move($uploadDirectory, $newFilename);
             } catch (FileException $e) {
@@ -156,7 +258,7 @@ class AudioFileController extends AbstractController
         ], JsonResponse::HTTP_CREATED, [], ['groups' => 'audio_file']);
     }
 
-    #[Route('/{id}', name: 'update', methods: ['PUT'])]
+    #[Route('/api/audio-files/{id}', name: 'update', methods: ['PUT'])]
     public function update(int $id, Request $request): JsonResponse
     {
         $audioFile = $this->audioFileRepository->find($id);
@@ -164,7 +266,14 @@ class AudioFileController extends AbstractController
         if (!$audioFile) {
             return $this->json(['error' => 'Audio file not found'], JsonResponse::HTTP_NOT_FOUND);
         }
-
+        
+        $song = $audioFile->getSong();
+        
+        $currentUser = $this->getUser();
+        if(!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
+            return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
+        }
+        
         $data = json_decode($request->getContent(), true);
 
         if (isset($data['description'])) {
@@ -189,13 +298,20 @@ class AudioFileController extends AbstractController
     }
 
 
-    #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
+    #[Route('/api/audio-files/{id}', name: 'delete', methods: ['DELETE'])]
     public function delete(int $id): JsonResponse
     {
         $audioFile = $this->audioFileRepository->find($id);
 
         if (!$audioFile) {
             return $this->json(['error' => 'File not found'], JsonResponse::HTTP_NOT_FOUND);
+        }
+        
+        $song = $audioFile->getSong();
+        
+        $currentUser = $this->getUser();
+        if(!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
+            return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
         $filePath = $this->getParameter('kernel.project_dir') . '/var/uploads/private/' . $audioFile->getPath();

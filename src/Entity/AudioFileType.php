@@ -18,7 +18,7 @@ class AudioFileType
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['audioFileType'])]
+    #[Groups(['audioFileType', 'audioFile'])]
     private ?string $name = null;
 
     /**

@@ -6,6 +6,7 @@ use App\Repository\AdministrativeTaskRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: AdministrativeTaskRepository::class)]
 class AdministrativeTask
@@ -13,18 +14,31 @@ class AdministrativeTask
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(['administrative_task'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
+    #[Groups(['administrative_task'])]
     private ?string $name = null;
 
     #[ORM\Column(length: 255)]
+    #[Groups(['administrative_task'])]
     private ?string $description = null;
+    
+    #[ORM\Column(type: 'json')]
+    #[Groups(['administrative_task'])]
+    private array $tableStructure = []; 
+    
+    #[ORM\Column(type: 'json')]
+    #[Groups(['administrative_task'])]
+    private array $tableValues = []; 
 
     #[ORM\Column]
+    #[Groups(['administrative_task'])]
     private ?\DateTimeImmutable $created_at = null;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['administrative_task'])]
     private ?\DateTimeImmutable $completed_at = null;
 
     /**
@@ -32,6 +46,10 @@ class AdministrativeTask
      */
     #[ORM\ManyToMany(targetEntity: User::class, inversedBy: 'administrativeTasks')]
     private Collection $assigned_to;
+
+    #[ORM\ManyToOne(inversedBy: 'administrativeTasks')]
+    #[Groups(['administrative_task'])]
+    private ?Project $project = null;
 
     public function __construct()
     {
@@ -111,6 +129,42 @@ class AdministrativeTask
     public function removeAssignedTo(User $assignedTo): static
     {
         $this->assigned_to->removeElement($assignedTo);
+
+        return $this;
+    }
+    
+    public function getTableStructure(): array
+    {
+        return $this->tableStructure;
+    }
+    
+    public function setTableStructure(array $tableStructure): self
+    {
+        $this->tableStructure = $tableStructure;
+    
+        return $this;
+    }
+    
+    public function getTableValues(): array
+    {
+        return $this->tableValues;
+    }
+    
+    public function setTableValues(array $tableValues): self
+    {
+        $this->tableValues = $tableValues;
+    
+        return $this;
+    }
+
+    public function getProject(): ?Project
+    {
+        return $this->project;
+    }
+
+    public function setProject(?Project $project): static
+    {
+        $this->project = $project;
 
         return $this;
     }

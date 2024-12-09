@@ -7,6 +7,7 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
+use Symfony\Component\Serializer\Annotation\MaxDepth;
 
 #[ORM\Entity(repositoryClass: SongRepository::class)]
 class Song
@@ -44,6 +45,10 @@ class Song
     #[ORM\Column(length: 255, nullable: true)]
     #[Groups(['song'])]
     private ?string $scale = null;
+
+    #[ORM\Column(nullable: true)]
+    #[Groups(['song'])]
+    private ?bool $isPublic = null;
 
     public function __construct()
     {
@@ -149,6 +154,18 @@ class Song
     public function setScale(?string $scale): static
     {
         $this->scale = $scale;
+
+        return $this;
+    }
+
+    public function isPublic(): ?bool
+    {
+        return $this->isPublic;
+    }
+
+    public function setPublic(?bool $isPublic): static
+    {
+        $this->isPublic = $isPublic;
 
         return $this;
     }
