@@ -30,6 +30,7 @@ class ProjectController extends AbstractController
     private $userRepository;
     private $audioFileRepository;
     private $invitationRepository;
+    private $secretStreaming;
 
     public function __construct(
         EntityManagerInterface $entityManager,
@@ -48,8 +49,8 @@ class ProjectController extends AbstractController
         $this->params = $params;
         $this->userRepository = $userRepository;
         $this->secretStreaming = $params->get("secret_streaming");
-        $this->audioFileRepository = $audioFileRepository;  
-        $this->invitationRepository = $invitationRepository;      
+        $this->audioFileRepository = $audioFileRepository;
+        $this->invitationRepository = $invitationRepository;
     }
 
     #[Route('', name: 'list', methods: ['GET'])]
@@ -59,11 +60,11 @@ class ProjectController extends AbstractController
         if (!$currentUser) {
             return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
-    
-        $projects = $this->repository->findByMember($currentUser); 
+
+        $projects = $this->repository->findByMember($currentUser);
         return $this->json($projects, JsonResponse::HTTP_OK, [], ['groups' => 'project']);
     }
-    
+
     #[Route('/public', name: 'list_public_projects', methods: ['GET'])]
     public function getPublic(): JsonResponse
     {
@@ -71,33 +72,33 @@ class ProjectController extends AbstractController
         if (!$currentUser) {
             return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
-    
+
         $publicProjects = $this->repository->findBy([
             'isPublic' => true
         ]);
-    
+
         return $this->json($publicProjects, JsonResponse::HTTP_OK, [], ['groups' => 'project']);
     }
-        
+
     #[Route('/{projectId<\d+>}/members/{memberId<\d+>}', name: 'remove_member', methods: ['DELETE'])]
     public function removeMember(int $projectId, int $memberId): JsonResponse
     {
         $project = $this->repository->find($projectId);
         $member = $this->userRepository->find($memberId);
         $currentUser = $this->getUser();
-        
+
         if (!$project || !$project->getMembers()->contains($currentUser)) {
             return $this->json(['error' => 'Project not found or access denied'], JsonResponse::HTTP_NOT_FOUND);
         }
-    
+
         if (!$project || !$member) {
             return $this->json(['error' => 'Project or member not found'], JsonResponse::HTTP_NOT_FOUND);
         }
-    
+
         if (!$project->getMembers()->contains($member)) {
             return $this->json(['error' => 'Member not part of this project'], JsonResponse::HTTP_BAD_REQUEST);
         }
-    
+
         try {
             $this->entityManager->beginTransaction();
             $invitations = $this->invitationRepository->findBy([
@@ -105,7 +106,7 @@ class ProjectController extends AbstractController
                 'status' => ['accepted', 'pending'],
                 'recipient' => $member
             ]);
-    
+
             foreach ($invitations as $invitation) {
                 $invitation->setStatus('revoked');
                 $this->entityManager->persist($invitation);
@@ -117,16 +118,16 @@ class ProjectController extends AbstractController
                 'sender' => $member,
                 'type' => 'request'
             ]);
-    
+
             foreach ($requests as $request) {
                 $request->setStatus('revoked');
                 $this->entityManager->persist($request);
             }
-    
+
             $project->removeMember($member);
             $this->entityManager->flush();
             $this->entityManager->commit();
-    
+
             return $this->json(['message' => 'Member removed successfully'], JsonResponse::HTTP_OK);
         } catch (\Exception $e) {
             $this->entityManager->rollback();
@@ -144,17 +145,17 @@ class ProjectController extends AbstractController
         if (!$currentUser) {
             return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
-        
+
         $project = $this->repository->find($id);
         $isOwner = $project->getMembers()->contains($currentUser);
-        
+
         if (!$project || !$isOwner && !$project->isPublic()) {
             return $this->json(['error' => 'Project not found or access denied'], JsonResponse::HTTP_NOT_FOUND);
         }
-    
+
         $songs = $this->songRepository->findBy(['project' => $project]);
         $songsData = [];
-    
+
         foreach ($songs as $song) {
             $audioFiles = $this->audioFileRepository->findBy(['song' => $song]);
             $masterFiles = array_filter($audioFiles, function ($file) {
@@ -167,10 +168,10 @@ class ProjectController extends AbstractController
                 });
                 $latestMasterFile = $masterFiles[0];
             }
-    
+
             $audioData = [];
             if ($latestMasterFile) {
-                $expiresAt = time() + 3600; 
+                $expiresAt = time() + 3600;
                 $signature = hash_hmac('sha256', $latestMasterFile->getId() . $expiresAt, $this->secretStreaming);
                 $signedUrl = 'stream/' . $latestMasterFile->getId() . '?expires=' . $expiresAt . '&signature=' . $signature;
 
@@ -199,7 +200,7 @@ class ProjectController extends AbstractController
                     'scale' => $song->getScale(),
                 ];
             } else {
-                if($song->isPublic()) {
+                if ($song->isPublic()) {
                     $songsData[] = [
                         'id' => $song->getId(),
                         'title' => $song->getTitle(),
@@ -230,7 +231,7 @@ class ProjectController extends AbstractController
                 ];
             })->toArray();
         }
-            
+
         return $this->json(
             [
                 'project' => [
@@ -244,7 +245,7 @@ class ProjectController extends AbstractController
                             'id' => $member->getId(),
                             'username' => $member->getUsername(),
                             'email' => $member->getEmail(),
-                            'isPublic' => $member->isPublic(), 
+                            'isPublic' => $member->isPublic(),
                         ];
                     })->toArray(),
                 ],
@@ -262,40 +263,40 @@ class ProjectController extends AbstractController
         if (!$currentUser) {
             return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
-    
+
         $projectId = $request->get('project_id');
         if (!$projectId) {
             return $this->json(['error' => 'Missing project_id'], JsonResponse::HTTP_BAD_REQUEST);
         }
-    
+
         $project = $this->repository->find($projectId);
         if (!$project || !$project->getMembers()->contains($currentUser)) {
             return $this->json(['error' => 'Project not found or access denied'], JsonResponse::HTTP_FORBIDDEN);
         }
-    
+
         $file = $request->files->get('profile_image');
         if (!$file) {
             return $this->json(['error' => 'No file uploaded'], JsonResponse::HTTP_BAD_REQUEST);
         }
-    
+
         if (!in_array($file->getMimeType(), ['image/jpeg', 'image/png', 'image/gif'])) {
             return $this->json(['error' => 'Invalid file type. Allowed types: jpeg, png, gif'], JsonResponse::HTTP_BAD_REQUEST);
         }
-    
+
         $uploadDirectory = $this->getParameter('project_images_directory');
         $originalFilename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
         $safeFilename = preg_replace('/[^a-zA-Z0-9-_]/', '_', $originalFilename);
-    
+
         do {
             $filename = $safeFilename . '-' . uniqid() . '.' . $file->guessExtension();
             $targetFilePath = $uploadDirectory . '/' . $filename;
         } while (file_exists($targetFilePath));
-    
+
         try {
             $file->move($uploadDirectory, $filename);
             $project->setProfileImage($filename);
             $this->entityManager->flush();
-    
+
             return $this->json(['message' => 'Image uploaded successfully'], JsonResponse::HTTP_OK);
         } catch (\Exception $e) {
             return $this->json(['error' => 'File upload failed', 'details' => $e->getMessage()], JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
@@ -306,44 +307,49 @@ class ProjectController extends AbstractController
     public function create(Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
-    
+
         if (!$data) {
             return $this->json(['error' => 'Invalid JSON format'], JsonResponse::HTTP_BAD_REQUEST);
         }
-    
+
         if (!isset($data['name']) || empty(trim($data['name']))) {
             return $this->json(['error' => 'Name is required and cannot be empty'], JsonResponse::HTTP_BAD_REQUEST);
         }
-        
+
+        $existingProject = $this->repository->findOneBy(['name' => trim($data['name'])]);
+        if ($existingProject) {
+            return $this->json(['error' => 'A project with this name already exists'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
         if (!isset($data['isPublic'])) {
             return $this->json(['error' => 'Is Public is required'], JsonResponse::HTTP_BAD_REQUEST);
         }
-    
-    
+
+
         if (isset($data['description']) && strlen($data['description']) > 2000) {
             return $this->json(['error' => 'Description must not exceed 2000 characters'], JsonResponse::HTTP_BAD_REQUEST);
         }
-    
+
         $currentUser = $this->getUser();
         if (!$currentUser) {
             return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
-    
+
         $project = new Project();
         $project->setName(trim($data['name']));
         $project->setPublic($data['isPublic']);
         $project->setDescription(isset($data['description']) ? trim($data['description']) : null);
-    
+
         $project->addMember($currentUser);
-    
+
         $errors = $this->validator->validate($project);
         if (count($errors) > 0) {
             return $this->json(['error' => (string) $errors], JsonResponse::HTTP_BAD_REQUEST);
         }
-    
+
         $this->entityManager->persist($project);
         $this->entityManager->flush();
-    
+
         return $this->json($project, JsonResponse::HTTP_CREATED, [], ['groups' => 'project']);
     }
 
@@ -354,37 +360,44 @@ class ProjectController extends AbstractController
         if (!$currentUser) {
             return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
-    
+
         $project = $this->repository->find($id);
         if (!$project || !$project->getMembers()->contains($currentUser)) {
             return $this->json(['error' => 'Project not found or access denied'], JsonResponse::HTTP_NOT_FOUND);
         }
-    
+
         $data = json_decode($request->getContent(), true);
-    
+
         if (!$data) {
             return $this->json(['error' => 'Invalid JSON format'], JsonResponse::HTTP_BAD_REQUEST);
         }
-    
+
         if (isset($data['name']) && empty(trim($data['name']))) {
             return $this->json(['error' => 'Name cannot be empty'], JsonResponse::HTTP_BAD_REQUEST);
         }
-    
+
+        if (isset($data['name']) && !empty(trim($data['name']))) {
+            $existingProject = $this->repository->findOneBy(['name' => trim($data['name'])]);
+            if ($existingProject && $existingProject->getId() !== $project->getId()) {
+                return $this->json(['error' => 'A project with this name already exists'], JsonResponse::HTTP_BAD_REQUEST);
+            }
+        }
+
         if (isset($data['description']) && strlen($data['description']) > 2000) {
             return $this->json(['error' => 'Description must not exceed 2000 characters'], JsonResponse::HTTP_BAD_REQUEST);
         }
-    
+
         $project->setName(isset($data['name']) ? trim($data['name']) : $project->getName());
         $project->setDescription(isset($data['description']) ? trim($data['description']) : $project->getDescription());
         $project->setPublic($data["isPublic"]);
-        
+
         $errors = $this->validator->validate($project);
         if (count($errors) > 0) {
             return $this->json(['error' => (string) $errors], JsonResponse::HTTP_BAD_REQUEST);
         }
-    
+
         $this->entityManager->flush();
-    
+
         return $this->json($project, JsonResponse::HTTP_OK, [], ['groups' => 'project']);
     }
 
@@ -396,29 +409,29 @@ class ProjectController extends AbstractController
         if (!$currentUser) {
             return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
-    
+
         $project = $this->repository->find($id);
         if (!$project || !$project->getMembers()->contains($currentUser)) {
             return $this->json(['error' => 'Project not found or access denied'], JsonResponse::HTTP_NOT_FOUND);
         }
-    
+
         try {
             $this->entityManager->beginTransaction();
             $invitations = $this->entityManager
                 ->getRepository(Invitation::class)
                 ->findBy(['project' => $project]);
-            
+
             foreach ($invitations as $invitation) {
                 $this->entityManager->remove($invitation);
             }
             $this->entityManager->remove($project);
             $this->entityManager->flush();
             $this->entityManager->commit();
-    
+
             return $this->json(['message' => 'Project deleted successfully'], JsonResponse::HTTP_OK);
         } catch (\Exception $e) {
             $this->entityManager->rollback();
-    
+
             return $this->json(
                 ['error' => 'Could not delete project', 'details' => $e->getMessage()],
                 JsonResponse::HTTP_INTERNAL_SERVER_ERROR
@@ -439,20 +452,20 @@ class ProjectController extends AbstractController
         $invitation->setProject($project);
         $invitation->setStatus('pending');
         $invitation->setToken(bin2hex(random_bytes(16)));
-    
+
         if ($recipient) {
             $invitation->setRecipient($recipient);
         } else {
             $invitation->setEmail($email);
         }
-    
+
         $this->entityManager->persist($invitation);
         $this->entityManager->flush();
-            
+
         $mailerHost = $this->params->get("mailer_host");
         $mailerPassword = $this->params->get("mailer_password");
         $mailerUsername = $this->params->get("mailer_username");
-    
+
         $mail = new PHPMailer();
         $mail->isSMTP();
         $mail->Host = $mailerHost;
@@ -474,8 +487,8 @@ class ProjectController extends AbstractController
                 UrlGeneratorInterface::ABSOLUTE_URL
             )
         );
-        $mail->isHTML(true); 
-        
+        $mail->isHTML(true);
+
         if ($mail->send()) {
             return new JsonResponse(
                 ['message' => 'Invitation sent.'],
@@ -488,24 +501,24 @@ class ProjectController extends AbstractController
             );
         }
     }
-    
+
     #[Route('/invitation/accept/{token}', name: 'accept_invitation', methods: ['GET'])]
     public function acceptInvitation(string $token, InvitationRepository $invitationRepo): JsonResponse
     {
         $invitation = $invitationRepo->findOneBy(['token' => $token]);
-    
+
         if (!$invitation) {
             return $this->json(['error' => 'Invalid or expired invitation.'], JsonResponse::HTTP_NOT_FOUND);
         }
-    
-        $user = $invitation->getUser(); 
+
+        $user = $invitation->getUser();
         $project = $invitation->getProject();
-    
+
         $project->addMember($user);
         $this->entityManager->persist($project);
         $this->entityManager->remove($invitation);
         $this->entityManager->flush();
-    
+
         return $this->json(['message' => 'Invitation accepted. You are now part of the project!'], JsonResponse::HTTP_OK);
     }
 }

@@ -62,9 +62,14 @@ class UserController extends AbstractController
             return $this->json(['error' => 'Invalid email format'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
-        $existingUser = $this->userRepository->findOneBy(['email' => $data['email']]);
-        if ($existingUser) {
+        $existingEmailUser = $this->userRepository->findOneBy(['email' => $data['email']]);
+        if ($existingEmailUser) {
             return $this->json(['error' => 'Email already exists'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        $existingUsernameUser = $this->userRepository->findOneBy(['username' => $data['username']]);
+        if ($existingUsernameUser) {
+            return $this->json(['error' => 'Username already exists'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $plainPassword = $data['password'];
@@ -418,6 +423,20 @@ class UserController extends AbstractController
         }
 
         $data = json_decode($request->getContent(), true);
+
+        if (isset($data['email'])) {
+            $existingEmailUser = $this->userRepository->findOneBy(['email' => $data['email']]);
+            if ($existingEmailUser && $existingEmailUser->getId() !== $user->getId()) {
+                return $this->json(['error' => 'Email already exists'], JsonResponse::HTTP_BAD_REQUEST);
+            }
+        }
+
+        if (isset($data['username'])) {
+            $existingUsernameUser = $this->userRepository->findOneBy(['username' => $data['username']]);
+            if ($existingUsernameUser && $existingUsernameUser->getId() !== $user->getId()) {
+                return $this->json(['error' => 'Username already exists'], JsonResponse::HTTP_BAD_REQUEST);
+            }
+        }
 
         if (isset($data['username'])) {
             $user->setUsername($data['username']);
