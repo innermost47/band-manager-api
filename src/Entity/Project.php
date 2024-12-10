@@ -17,27 +17,27 @@ class Project
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['project', 'user'])]
+    #[Groups(['project', 'user', 'event:read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['project', 'user'])]
+    #[Groups(['project', 'user', 'event:read'])]
     private ?string $name = null;
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
-    #[Groups(['project'])]
+    #[Groups(['project', 'event:read'])]
     private ?string $description = null;
 
     /**
      * @var Collection<int, Song>
      */
     #[ORM\OneToMany(targetEntity: Song::class, mappedBy: 'project')]
-    #[Groups(['project'])]
-    #[MaxDepth(1)] 
+    #[Groups(['project', 'event:read'])]
+    #[MaxDepth(1)]
     private Collection $songs;
 
     #[ORM\Column(length: 255, nullable: true)]
-    #[Groups(['project'])]
+    #[Groups(['project', 'event:read'])]
     private ?string $profileImage = null;
 
     /**
@@ -50,8 +50,8 @@ class Project
      * @var Collection<int, User>
      */
     #[ORM\ManyToMany(targetEntity: User::class, mappedBy: 'projects')]
-    #[Groups(['project'])]
-    #[MaxDepth(1)] 
+    #[Groups(['project', 'event:read'])]
+    #[MaxDepth(1)]
     private Collection $members;
 
     /**
@@ -67,7 +67,7 @@ class Project
     private Collection $administrativeTasks;
 
     #[ORM\Column(nullable: true)]
-    #[Groups(['project', 'user'])]
+    #[Groups(['project', 'user', 'event:read'])]
     private ?bool $isPublic = null;
 
     public function __construct()
