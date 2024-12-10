@@ -14,8 +14,7 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use PHPMailer\PHPMailer\PHPMailer;
-use App\Service\JwtService;
+use App\Service\EmailService;
 use Symfony\Component\Serializer\SerializerInterface;
 
 #[Route('', name: 'user_')]
@@ -25,12 +24,10 @@ class UserController extends AbstractController
     private $userRepository;
     private $passwordHasher;
     private $validator;
-    private $params;
-    private $mailer;
-    private $jwtService;
     private $serializer;
-    private $invitationsRepository;
+    private $invitationRepository;
     private $projectRepository;
+    private $emailService;
 
     public function __construct(
         EntityManagerInterface $entityManager,
@@ -38,7 +35,6 @@ class UserController extends AbstractController
         UserPasswordHasherInterface $passwordHasher,
         ValidatorInterface $validator,
         ParameterBagInterface $params,
-        JwtService $jwtService,
         SerializerInterface $serializer,
         InvitationRepository $invitationRepository,
         ProjectRepository $projectRepository
@@ -47,11 +43,10 @@ class UserController extends AbstractController
         $this->userRepository = $userRepository;
         $this->passwordHasher = $passwordHasher;
         $this->validator = $validator;
-        $this->params = $params;
-        $this->jwtService = $jwtService;
         $this->serializer = $serializer;
         $this->invitationRepository = $invitationRepository;
         $this->projectRepository = $projectRepository;
+        $this->emailService = new EmailService($params);
     }
 
     #[Route('/signup', name: 'create', methods: ['POST'])]
@@ -108,37 +103,22 @@ class UserController extends AbstractController
         $this->entityManager->persist($user);
         $this->entityManager->flush();
 
-        $mailerUsername = $this->params->get('mailer_username');
-        $mailerPassword = $this->params->get('mailer_password');
-        $mailerHost = $this->params->get('mailer_host');
-
-        $mail = new PHPMailer(true);
-        try {
-            $mail->isSMTP();
-            $mail->Host = $mailerHost;
-            $mail->SMTPAuth = true;
-            $mail->Username = $mailerUsername;
-            $mail->Password = $mailerPassword;
-            $mail->SMTPSecure = 'tls';
-            $mail->Port = 587;
-
-            $mail->setFrom($mailerUsername, 'Account Verification');
-            $mail->addAddress($user->getEmail());
-
-            $mail->Subject = 'Verify Your Email';
-            $mail->Body = "Thank you for signing up.\n\n" .
-                "Please use the following code to verify your account:\n\n" .
-                "Verification Code: $verificationCode\n\n" .
-                "If you did not sign up, please ignore this email.";
-
-            $mail->send();
-
-            return $this->json(
+        $recipientEmail = $user->getEmail();
+        $subject = "Verify Your Email";
+        $fromSubject = 'Account Verification';
+        $body = "Thank you for signing up.\n\n" .
+            "Please use the following code to verify your account:\n\n" .
+            "Verification Code: $verificationCode\n\n" .
+            "If you did not sign up, please ignore this email.";
+        $altBody = $body;
+        $isEmailSent = $this->emailService->sendEmail($recipientEmail, $subject, $body,  $altBody, $fromSubject);
+        if ($isEmailSent) {
+            return new JsonResponse(
                 ['message' => 'User created successfully. Verification code sent to email.'],
                 JsonResponse::HTTP_CREATED
             );
-        } catch (Exception $e) {
-            return $this->json(
+        } else {
+            return new JsonResponse(
                 ['message' => 'User created successfully, but email sending failed.'],
                 JsonResponse::HTTP_CREATED
             );

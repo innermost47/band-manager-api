@@ -3,40 +3,35 @@
 namespace App\Controller;
 
 use App\Entity\Invitation;
-use App\Entity\User;
 use App\Repository\InvitationRepository;
 use App\Repository\UserRepository;
 use App\Repository\ProjectRepository;
-use App\Service\EmailService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
-use PHPMailer\PHPMailer\PHPMailer;
+use App\Service\EmailService;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 
 #[Route('/api/invitations')]
 class InvitationController extends AbstractController
 {
-    private $params;
     private $entityManager;
     private $projectRepository;
     private $invitationRepository;
+    private $emailService;
 
     public function __construct(
-        ParameterBagInterface $params,
         EntityManagerInterface $entityManager,
         ProjectRepository $projectRepository,
-        InvitationRepository $invitationRepository
+        InvitationRepository $invitationRepository,
+        ParameterBagInterface $params
     ) {
-        $this->params = $params;
         $this->entityManager = $entityManager;
         $this->projectRepository = $projectRepository;
-        $this->mailerHost = $params->get("mailer_host");
-        $this->mailerPassword = $params->get("mailer_password");
-        $this->mailerUsername = $params->get("mailer_username");
         $this->invitationRepository = $invitationRepository;
+        $this->emailService = new EmailService($params);
     }
 
     #[Route('/send', name: 'send_invitation', methods: ['POST'])]
@@ -83,23 +78,9 @@ class InvitationController extends AbstractController
 
         $this->entityManager->persist($invitation);
         $this->entityManager->flush();
-
-
-        $mail = new PHPMailer();
-        $mail->isSMTP();
-        $mail->Host = $this->mailerHost;
-        $mail->SMTPAuth = true;
-        $mail->Username = $this->mailerUsername;
-        $mail->Password = $this->mailerPassword;
-        $mail->SMTPSecure = 'tls';
-        $mail->Port = 587;
-
-        $to = $recipient->getEmail();
-        $mail->setFrom($this->mailerUsername, 'Project Invitation');
-        $mail->addAddress($to);
-
-        $mail->Subject = 'You’ve been invited to join a project';
-        $mail->Body = "Hello,
+        $recipientEmail = $recipient->getEmail();
+        $subject = 'You\'ve been invited to join a project';
+        $body = "Hello,
         
         You have been invited to join the project: " . $project->getName() . ".
         
@@ -109,8 +90,7 @@ class InvitationController extends AbstractController
         
         Best regards,
         Band Manager";
-
-        $mail->AltBody = "Hello,
+        $altBody = "Hello,
         
         You have been invited to join the project: " . $project->getName() . ".
         
@@ -118,8 +98,9 @@ class InvitationController extends AbstractController
         
         Best regards,
         Band Manager";
-
-        if ($mail->send()) {
+        $fromSubject = 'Project Invitation';
+        $isEmailSent = $this->emailService->sendEmail($recipientEmail, $subject, $body,  $altBody, $fromSubject);
+        if ($isEmailSent) {
             return new JsonResponse(
                 ['message' => 'Invitation sent successfully.'],
                 JsonResponse::HTTP_OK
@@ -172,15 +153,15 @@ class InvitationController extends AbstractController
             'project' => $project,
             'status' => ['pending', 'revoked', 'declined']
         ]);
-        
+
         if ($existingInvitation) {
-            $errorMessage = match($existingInvitation->getStatus()) {
+            $errorMessage = match ($existingInvitation->getStatus()) {
                 'pending' => 'A request is already pending for this project',
                 'revoked' => 'You cannot request to join this project as your previous access was revoked',
                 'declined' => 'You cannot request to join this project as your previous request was declined',
                 default => 'Cannot process request for this project'
             };
-            
+
             return $this->json(['error' => $errorMessage], JsonResponse::HTTP_BAD_REQUEST);
         }
 
@@ -196,22 +177,10 @@ class InvitationController extends AbstractController
 
         $this->entityManager->persist($invitation);
         $this->entityManager->flush();
-
-        $mail = new PHPMailer();
-        $mail->isSMTP();
-        $mail->Host = $this->mailerHost;
-        $mail->SMTPAuth = true;
-        $mail->Username = $this->mailerUsername;
-        $mail->Password = $this->mailerPassword;
-        $mail->SMTPSecure = 'tls';
-        $mail->Port = 587;
-
-        $to = $targetUser->getEmail();
-        $mail->setFrom($this->mailerUsername, 'Collaboration Request');
-        $mail->addAddress($to);
-
-        $mail->Subject = 'New Collaboration Request';
-        $mail->Body = "Hello,
+        $recipientEmail = $targetUser->getEmail();
+        $subject = 'New Collaboration Request';
+        $fromSubject = 'Collaboration Request';
+        $body = "Hello,
         
         " . $currentUser->getUsername() . " has requested to join your project: " . $project->getName() . ".
         
@@ -222,7 +191,7 @@ class InvitationController extends AbstractController
         Best regards,
         Band Manager";
 
-        $mail->AltBody = "Hello,
+        $altBody = "Hello,
         
         " . $currentUser->getUsername() . " has requested to join your project: " . $project->getName() . ".
         
@@ -230,8 +199,9 @@ class InvitationController extends AbstractController
         
         Best regards,
         Band Manager";
+        $isEmailSent = $this->emailService->sendEmail($recipientEmail, $subject, $body,  $altBody, $fromSubject);
 
-        if ($mail->send()) {
+        if ($isEmailSent) {
             return new JsonResponse(
                 ['message' => 'Collaboration request sent successfully.'],
                 JsonResponse::HTTP_OK
@@ -279,24 +249,11 @@ class InvitationController extends AbstractController
         $this->entityManager->persist($invitation);
         $this->entityManager->flush();
 
-        $mail = new PHPMailer();
-        $mail->isSMTP();
-        $mail->Host = $this->mailerHost;
-        $mail->SMTPAuth = true;
-        $mail->Username = $this->mailerUsername;
-        $mail->Password = $this->mailerPassword;
-        $mail->SMTPSecure = 'tls';
-        $mail->Port = 587;
-
-        $to = $sender->getEmail();
+        $recipientEmail = $sender->getEmail();
         $subject = $invitation->getType() === 'request' ? 'Collaboration Request Accepted' : 'Invitation Accepted';
-        $mail->setFrom($this->mailerUsername, $subject);
-        $mail->addAddress($to);
-
-        $mail->Subject = $subject;
-
+        $body = "";
         if ($invitation->getType() === 'request') {
-            $mail->Body = "Hello,
+            $body = "Hello,
             
             We are happy to inform you that your request to join the project: {$project->getName()} has been accepted.
             
@@ -307,7 +264,7 @@ class InvitationController extends AbstractController
             Best regards,  
             Band Manager";
         } else {
-            $mail->Body = "Hello,
+            $body = "Hello,
             
             We are happy to inform you that the invitation to join the project: {$project->getName()} has been accepted.
             
@@ -319,9 +276,10 @@ class InvitationController extends AbstractController
             Band Manager";
         }
 
-        $mail->AltBody = $mail->Body;
+        $altBody = $body;
+        $isEmailSent = $this->emailService->sendEmail($recipientEmail, $subject, $body,  $altBody, $subject);
 
-        if ($mail->send()) {
+        if ($isEmailSent) {
             return new JsonResponse(
                 ['message' => $invitation->getType() === 'request' ? 'Request accepted.' : 'Invitation accepted.'],
                 JsonResponse::HTTP_OK
@@ -348,24 +306,12 @@ class InvitationController extends AbstractController
         $invitation->setStatus('declined');
         $this->entityManager->flush();
 
-        $mail = new PHPMailer();
-        $mail->isSMTP();
-        $mail->Host = $this->mailerHost;
-        $mail->SMTPAuth = true;
-        $mail->Username = $this->mailerUsername;
-        $mail->Password = $this->mailerPassword;
-        $mail->SMTPSecure = 'tls';
-        $mail->Port = 587;
-
-        $to = $sender->getEmail();
+        $recipientEmail = $sender->getEmail();
         $subject = $invitation->getType() === 'request' ? 'Collaboration Request Declined' : 'Invitation Declined';
-        $mail->setFrom($this->mailerUsername, $subject);
-        $mail->addAddress($to);
-
-        $mail->Subject = $subject;
+        $body = "";
 
         if ($invitation->getType() === 'request') {
-            $mail->Body = "Hello,
+            $body = "Hello,
             
             We regret to inform you that your request to join the project: {$project->getName()} has been declined.
             
@@ -374,7 +320,7 @@ class InvitationController extends AbstractController
             Best regards,  
             Band Manager";
         } else {
-            $mail->Body = "Hello,
+            $body = "Hello,
             
             We regret to inform you that the invitation to join the project: {$project->getName()} has been declined by the recipient.
             
@@ -384,9 +330,10 @@ class InvitationController extends AbstractController
             Band Manager";
         }
 
-        $mail->AltBody = $mail->Body;
+        $altBody = $body;
+        $isEmailSent = $this->emailService->sendEmail($recipientEmail, $subject, $body,  $altBody, $subject);
 
-        if ($mail->send()) {
+        if ($isEmailSent->send()) {
             return new JsonResponse(
                 ['message' => $invitation->getType() === 'request' ? 'Request declined.' : 'Invitation declined.'],
                 JsonResponse::HTTP_OK
@@ -414,24 +361,12 @@ class InvitationController extends AbstractController
         $this->entityManager->remove($invitation);
         $this->entityManager->flush();
 
-        $mail = new PHPMailer();
-        $mail->isSMTP();
-        $mail->Host = $this->mailerHost;
-        $mail->SMTPAuth = true;
-        $mail->Username = $this->mailerUsername;
-        $mail->Password = $this->mailerPassword;
-        $mail->SMTPSecure = 'tls';
-        $mail->Port = 587;
-
-        $to = $recipient->getEmail();
+        $recipientEmail = $recipient->getEmail();
         $subject = $invitation->getType() === 'request' ? 'Collaboration Request Cancelled' : 'Invitation Cancelled';
-        $mail->setFrom($this->mailerUsername, $subject);
-        $mail->addAddress($to);
-
-        $mail->Subject = $subject;
+        $body = "";
 
         if ($invitation->getType() === 'request') {
-            $mail->Body = "Hello,
+            $body = "Hello,
             
             The collaboration request for the project: {$project->getName()} has been cancelled.
             
@@ -440,7 +375,7 @@ class InvitationController extends AbstractController
             Best regards,  
             Band Manager";
         } else {
-            $mail->Body = "Hello,
+            $body = "Hello,
             
             The invitation to join the project: {$project->getName()} has been cancelled by the sender.
             
@@ -450,9 +385,10 @@ class InvitationController extends AbstractController
             Band Manager";
         }
 
-        $mail->AltBody = $mail->Body;
+        $altBody = $body;
+        $isEmailSent = $this->emailService->sendEmail($recipientEmail, $subject, $body,  $altBody, $subject);
 
-        if ($mail->send()) {
+        if ($isEmailSent->send()) {
             return new JsonResponse(
                 ['message' => $invitation->getType() === 'request' ? 'Request cancelled.' : 'Invitation cancelled.'],
                 JsonResponse::HTTP_OK

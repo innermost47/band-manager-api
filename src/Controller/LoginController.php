@@ -9,8 +9,8 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
-use PHPMailer\PHPMailer\PHPMailer;
 use Doctrine\ORM\EntityManagerInterface;
+use App\Service\EmailService;
 
 class LoginController
 {
@@ -19,6 +19,7 @@ class LoginController
     private $passwordHasher;
     private $params;
     private $entityManager;
+    private $emailService;
 
     public function __construct(
         UserRepository $userRepository,
@@ -32,6 +33,7 @@ class LoginController
         $this->passwordHasher = $passwordHasher;
         $this->params = $params;
         $this->entityManager = $entityManager;
+        $this->emailService = new EmailService($params);
     }
 
     #[Route('/login', name: 'login', methods: ['POST'])]
@@ -47,7 +49,7 @@ class LoginController
         if (!$user) {
             return new JsonResponse(['error' => 'User not found'], JsonResponse::HTTP_UNAUTHORIZED);
         }
-        if(!$user->isVerified()) {
+        if (!$user->isVerified()) {
             return new JsonResponse(['error' => 'This account is not verified'], JsonResponse::HTTP_UNAUTHORIZED);
         }
         if (!$this->passwordHasher->isPasswordValid($user, $credentials['password'])) {
@@ -55,9 +57,6 @@ class LoginController
         }
 
         $environment = $this->params->get('kernel.environment');
-        $mailerHost = $this->params->get("mailer_host");
-        $mailerPassword = $this->params->get("mailer_password");
-        $mailerUsername = $this->params->get("mailer_username");
 
         if ($environment === 'prod') {
             try {
@@ -80,22 +79,16 @@ class LoginController
                     JsonResponse::HTTP_INTERNAL_SERVER_ERROR
                 );
             }
-                         
-            $mail = new PHPMailer();
-            $mail->isSMTP();
-            $mail->Host = $mailerHost;
-            $mail->SMTPAuth = true;
-            $mail->Username = $mailerUsername;
-            $mail->Password = $mailerPassword;
-            $mail->SMTPSecure = 'tls';
-            $mail->Port = 587;
-            $to = $user->getEmail();
-            $mail->setFrom($mailerUsername, 'Verify2fa');
-            $mail->addAddress($to);
-            $mail->Subject = 'Your Two-Factor Authentication Code';
-            $mail->Body = "Your verification code is: $twoFactorCode. It will expire in 10 minutes.";
-            
-            if ($mail->send()) {
+
+            $recipientEmail = $user->getEmail();
+            $fromSubject = 'Verify2fa';
+            $subject = 'Your Two-Factor Authentication Code';
+            $body = "Your verification code is: $twoFactorCode. It will expire in 10 minutes.";
+            $altBody = $body;
+
+            $isEmailSent = $this->emailService->sendEmail($recipientEmail, $subject, $body,  $altBody, $fromSubject);
+
+            if ($isEmailSent) {
                 return new JsonResponse(
                     ['message' => 'Verification code sent to your email.'],
                     JsonResponse::HTTP_OK
