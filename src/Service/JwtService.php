@@ -41,7 +41,7 @@ class JwtService
             ->permittedFor($permittedFor)
             ->issuedAt($now)
             ->canOnlyBeUsedAfter($now)
-            ->expiresAt($now->modify('+2 hours'))
+            ->expiresAt($now->modify('+48 hours'))
             ->withClaim('email', $email)
             ->getToken($this->jwtConfig->signer(), $this->jwtConfig->signingKey());
 

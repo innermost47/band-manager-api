@@ -43,7 +43,6 @@ class JwtAuthenticator extends AbstractAuthenticator
     public function authenticate(Request $request): Passport
     {
         $jwt = str_replace('Bearer ', '', $request->headers->get('Authorization'));
-
         try {
             $token = $this->jwtConfig->parser()->parse($jwt);
             $this->jwtConfig->validator()->assert($token, ...[
@@ -55,7 +54,6 @@ class JwtAuthenticator extends AbstractAuthenticator
                     new SystemClock(new \DateTimeZone('UTC'))
                 )
             ]);
-
             $claims = $token->claims();
             $email = $claims->get('email');
             $user = $this->userRepository->findOneBy(['email' => $email]);
@@ -67,27 +65,11 @@ class JwtAuthenticator extends AbstractAuthenticator
             }
             return new SelfValidatingPassport(new UserBadge($email));
         } catch (\Lcobucci\JWT\Validation\RequiredConstraintsViolated $e) {
-            if ($e->getMessage() === 'The token is expired') {
-                return $this->handleTokenExpiration($request);
-            }
-            throw new AuthenticationException('Invalid JWT token: ' . $e->getMessage());
+            throw new AuthenticationException('Token is expired or invalid');
         } catch (\Exception $e) {
             error_log('Authentication failed: ' . $e->getMessage());
             throw new AuthenticationException('Authentication error: ' . $e->getMessage());
         }
-    }
-
-    private function handleTokenExpiration(Request $request): Passport
-    {
-        $jwt = str_replace('Bearer ', '', $request->headers->get('Authorization'));
-        $email = $this->jwtService->getEmailFromToken($jwt);
-        $newAccessToken = $this->jwtService->createToken($email);
-        $response = new Response();
-        $response->headers->set('Authorization', 'Bearer ' . $newAccessToken);
-        return new SelfValidatingPassport(
-            new UserBadge($email),
-            ['response' => $response]
-        );
     }
 
     public function onAuthenticationSuccess(Request $request, $token, string $firewallName): ?\Symfony\Component\HttpFoundation\Response
