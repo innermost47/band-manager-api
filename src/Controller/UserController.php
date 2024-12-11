@@ -28,6 +28,7 @@ class UserController extends AbstractController
     private $invitationRepository;
     private $projectRepository;
     private $emailService;
+    private $params;
 
     public function __construct(
         EntityManagerInterface $entityManager,
@@ -47,6 +48,7 @@ class UserController extends AbstractController
         $this->invitationRepository = $invitationRepository;
         $this->projectRepository = $projectRepository;
         $this->emailService = new EmailService($params);
+        $this->params = $params;
     }
 
     #[Route('/signup', name: 'create', methods: ['POST'])]
@@ -56,6 +58,14 @@ class UserController extends AbstractController
 
         if (!$data) {
             return $this->json(['error' => 'Invalid JSON format'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        $totalUsers = $this->userRepository->count([]);
+        $maxUsers = $this->params->get('app.max_users');
+        if ($totalUsers >= $maxUsers) {
+            return $this->json([
+                'error' => sprintf('Maximum number of users (%d) reached. Cannot create new account.', $maxUsers)
+            ], JsonResponse::HTTP_FORBIDDEN);
         }
 
         if (!isset($data['email']) || !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
