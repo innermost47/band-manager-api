@@ -10,7 +10,6 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Annotation\Route;
 use App\Service\EmailService;
-use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 
@@ -43,50 +42,67 @@ class ForgotPasswordController extends AbstractController
             return $this->json(['error' => 'User not found'], JsonResponse::HTTP_NOT_FOUND);
         }
 
-        $resetToken = Uuid::v4()->toRfc4122();
-        $user->setTwoFactorCode($resetToken);
-        $user->setTwoFactorCodeExpiresAt(new \DateTimeImmutable('+1 hour'));
+        $verificationCode = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+
+        $user->setTwoFactorCode($verificationCode);
+        $user->setTwoFactorCodeExpiresAt(new \DateTimeImmutable('+15 minutes'));
 
         $this->entityManager->flush();
 
-        $resetUrl = $this->generateUrl('password_reset', ['token' => $resetToken], \Symfony\Component\Routing\Generator\UrlGeneratorInterface::ABSOLUTE_URL);
-
         $recipientEmail = $user->getEmail();
-        $subject = 'Password Reset Request';
-        $body = sprintf('<p>Click <a href="%s">here</a> to reset your password. This link will expire in 1 hour.</p>', $resetUrl);
-        $altBody = $body;
+        $subject = 'Password Reset Verification Code';
+        $body = sprintf(
+            '<p>Your verification code is: <strong>%s</strong></p>
+            <p>This code will expire in 15 minutes.</p>
+            <p>If you did not request this code, please ignore this email.</p>',
+            $verificationCode
+        );
+        $altBody = strip_tags($body);
         $fromSubject = $subject;
-        $isEmailSent = $this->emailService->sendEmail($recipientEmail, $subject, $body,  $altBody, $fromSubject);
+
+        $isEmailSent = $this->emailService->sendEmail($recipientEmail, $subject, $body, $altBody, $fromSubject);
+
         if ($isEmailSent) {
             return new JsonResponse(
-                ['message' => 'Password reset email sent'],
+                ['message' => 'Verification code sent successfully'],
                 JsonResponse::HTTP_OK
             );
         } else {
             return new JsonResponse(
-                ['message' => 'Password reset email clound not be sent. Please try again later.'],
+                ['message' => 'Verification code could not be sent. Please try again later.'],
                 JsonResponse::HTTP_INTERNAL_SERVER_ERROR
             );
         }
     }
 
-    #[Route('/reset/{token}', name: 'reset', methods: ['POST'])]
-    public function resetPassword(Request $request, string $token, UserPasswordHasherInterface $passwordHasher, ValidatorInterface $validator): JsonResponse
+    #[Route('/reset', name: 'reset', methods: ['POST'])]
+    public function resetPassword(Request $request, UserPasswordHasherInterface $passwordHasher, ValidatorInterface $validator): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
 
-        if (!isset($data['password']) || empty($data['password'])) {
-            return $this->json(['error' => 'Password is required'], JsonResponse::HTTP_BAD_REQUEST);
+        if (!isset($data['email']) || empty($data['email'])) {
+            return $this->json(['error' => 'Email is required'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
-        $user = $this->userRepository->findOneBy(['twoFactorCode' => $token]);
+        if (!isset($data['code']) || empty($data['code'])) {
+            return $this->json(['error' => 'Verification code is required'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        if (!isset($data['password']) || empty($data['password'])) {
+            return $this->json(['error' => 'New password is required'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        $user = $this->userRepository->findOneBy([
+            'email' => $data['email'],
+            'twoFactorCode' => $data['code']
+        ]);
 
         if (!$user) {
-            return $this->json(['error' => 'Invalid or expired token'], JsonResponse::HTTP_BAD_REQUEST);
+            return $this->json(['error' => 'Invalid verification code'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
-        if ($user->getTwoFactorCodeExpiresAt() < new \DateTimeImmutable()) {
-            return $this->json(['error' => 'Token has expired'], JsonResponse::HTTP_BAD_REQUEST);
+        if (!$user->getTwoFactorCodeExpiresAt() || $user->getTwoFactorCodeExpiresAt() < new \DateTimeImmutable()) {
+            return $this->json(['error' => 'Verification code has expired'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $constraints = new \Symfony\Component\Validator\Constraints\NotCompromisedPassword();
