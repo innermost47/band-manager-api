@@ -36,6 +36,21 @@ class LoginController
         $this->emailService = new EmailService($params);
     }
 
+    #[Route('/check-registration-availability', name: 'check_registration', methods: ['GET'])]
+    public function checkRegistrationAvailability(): JsonResponse
+    {
+        $totalUsers = $this->userRepository->count([]);
+        $maxUsers = $this->params->get('app.max_users');
+        $remainingSlots = max(0, $maxUsers - $totalUsers);
+        
+        return new JsonResponse([
+            'canRegister' => $totalUsers < $maxUsers,
+            'totalUsers' => $totalUsers,
+            'maxUsers' => $maxUsers,
+            'remainingSlots' => $remainingSlots
+        ]);
+    }
+
     #[Route('/login', name: 'login', methods: ['POST'])]
     public function login(Request $request): JsonResponse
     {
