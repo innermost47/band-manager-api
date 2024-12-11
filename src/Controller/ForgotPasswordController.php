@@ -14,7 +14,7 @@ use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 
-#[Route('/api/password', name: 'password_')]
+#[Route('/password', name: 'password_')]
 class ForgotPasswordController extends AbstractController
 {
     private $entityManager;
