@@ -8,6 +8,7 @@ parameters:
   mailer_host: "%env(MAILER_HOST)%"
   jwt_secret: "%env(JWT_SECRET)%"
   secret_streaming: "%env(SECRET_STREAMING)%"
+  app.max_users: 30
 
 services:
   _defaults:
