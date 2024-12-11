@@ -21,54 +21,54 @@ class Event
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['event:read'])]
+    #[Groups(['event:read', 'event:write'])]
     private ?string $name = null;
 
     #[ORM\Column(type: Types::TEXT)]
-    #[Groups(['event:read'])]
+    #[Groups(['event:read', 'event:write'])]
     private ?string $description = null;
 
     #[ORM\Column]
-    #[Groups(['event:read'])]
+    #[Groups(['event:read', 'event:write'])]
     private ?\DateTimeImmutable $start_date = null;
 
     #[ORM\Column]
-    #[Groups(['event:read'])]
+    #[Groups(['event:read', 'event:write'])]
     private ?\DateTimeImmutable $end_date = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['event:read'])]
+    #[Groups(['event:read', 'event:write'])]
     private ?string $location = null;
 
     #[ORM\Column(type: Types::STRING, length: 20, nullable: true)]
-    #[Groups(['event:read'])]
+    #[Groups(['event:read', 'event:write'])]
     private ?string $recurrence_type = null;
 
     #[ORM\Column(type: Types::INTEGER, nullable: true)]
-    #[Groups(['event:read'])]
+    #[Groups(['event:read', 'event:write'])]
     private ?int $recurrence_interval = null;
 
     #[ORM\Column(type: Types::JSON, nullable: true)]
-    #[Groups(['event:read'])]
+    #[Groups(['event:read', 'event:write'])]
     private ?array $recurrence_days = null;
 
     #[ORM\Column(type: Types::JSON, nullable: true)]
-    #[Groups(['event:read'])]
+    #[Groups(['event:read', 'event:write'])]
     private ?array $recurrence_months = null;
 
     #[ORM\Column(nullable: true)]
-    #[Groups(['event:read'])]
+    #[Groups(['event:read', 'event:write'])]
     private ?\DateTimeImmutable $recurrence_end = null;
 
     #[ORM\OneToMany(mappedBy: 'parent_event', targetEntity: EventException::class)]
-    #[Groups(['event:read'])]
+    #[Groups(['event:read', 'event:write'])]
     private Collection $exceptions;
 
     #[ORM\ManyToOne(targetEntity: Project::class, inversedBy: 'events')]
     private ?Project $project = null;
 
     #[ORM\Column(nullable: true)]
-    #[Groups(['event:read'])]
+    #[Groups(['event:read', 'event:write'])]
     #[SerializedName('is_public')]
     private ?bool $isPublic = null;
 

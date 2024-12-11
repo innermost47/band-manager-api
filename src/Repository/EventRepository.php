@@ -61,4 +61,38 @@ class EventRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    public function findAllEventsUpTo(\DateTimeImmutable $date): array
+    {
+        $events = $this->findAll();
+        $occurrences = [];
+
+        foreach ($events as $event) {
+            $start = $event->getStartDate();
+            if (!$event->getRecurrenceType()) {
+                if ($start <= $date) {
+                    $occurrences[] = $event;
+                }
+                continue;
+            }
+            $end = $event->getRecurrenceEnd() ?: $date;
+            $interval = $event->getRecurrenceInterval() ?: 1;
+
+            while ($start <= $end && $start <= $date) {
+                $occurrences[] = clone $event;
+                $start = match ($event->getRecurrenceType()) {
+                    'DAILY' => $start->modify("+{$interval} days"),
+                    'WEEKLY' => $start->modify("+{$interval} weeks"),
+                    'BI_WEEKLY' => $start->modify("+" . (2 * $interval) . " weeks"),
+                    'MONTHLY' => $start->modify("+{$interval} months"),
+                    'YEARLY' => $start->modify("+{$interval} years"),
+                    default => null,
+                };
+                if (!$start) {
+                    break;
+                }
+            }
+        }
+        return $occurrences;
+    }
 }

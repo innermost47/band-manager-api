@@ -29,18 +29,20 @@ class EmailService
         $mail->Password = $this->mailerPassword;
         $mail->SMTPSecure = 'tls';
         $mail->Port = 587;
+        $mail->CharSet = 'UTF-8';
 
         $to = $recipientEmail;
         $mail->setFrom($this->mailerUsername, $fromSubject);
         $mail->addAddress($to);
 
         $mail->Subject = $subject;
-        $mail->Body = $body;
-        $mail->AltBody = $altBody;
+        $mail->Body = str_replace("\n", "\r\n", $body);
+        $mail->AltBody = str_replace("\n", "\r\n", $altBody);
 
         if ($mail->send()) {
             return true;
         } else {
+            error_log('Email error: ' . $mail->ErrorInfo);
             return false;
         }
     }
