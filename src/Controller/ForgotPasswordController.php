@@ -9,23 +9,23 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Annotation\Route;
-use Symfony\Component\Mailer\MailerInterface;
-use Symfony\Component\Mime\Email;
+use App\Service\EmailService;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 
 #[Route('/api/password', name: 'password_')]
 class ForgotPasswordController extends AbstractController
 {
     private $entityManager;
     private $userRepository;
-    private $mailer;
+    private $emailService;
 
-    public function __construct(EntityManagerInterface $entityManager, UserRepository $userRepository, MailerInterface $mailer)
+    public function __construct(EntityManagerInterface $entityManager, UserRepository $userRepository, ParameterBagInterface $params)
     {
         $this->entityManager = $entityManager;
         $this->userRepository = $userRepository;
-        $this->mailer = $mailer;
+        $this->emailService = new EmailService($params);
     }
 
     #[Route('/forgot', name: 'forgot', methods: ['POST'])]
@@ -51,15 +51,23 @@ class ForgotPasswordController extends AbstractController
 
         $resetUrl = $this->generateUrl('password_reset', ['token' => $resetToken], \Symfony\Component\Routing\Generator\UrlGeneratorInterface::ABSOLUTE_URL);
 
-        $email = (new Email())
-            ->from($_ENV['MAILER_FROM'])
-            ->to($user->getEmail())
-            ->subject('Password Reset Request')
-            ->html(sprintf('<p>Click <a href="%s">here</a> to reset your password. This link will expire in 1 hour.</p>', $resetUrl));
-
-        $this->mailer->send($email);
-
-        return $this->json(['message' => 'Password reset email sent'], JsonResponse::HTTP_OK);
+        $recipientEmail = $user->getEmail();
+        $subject = 'Password Reset Request';
+        $body = sprintf('<p>Click <a href="%s">here</a> to reset your password. This link will expire in 1 hour.</p>', $resetUrl);
+        $altBody = $body;
+        $fromSubject = $subject;
+        $isEmailSent = $this->emailService->sendEmail($recipientEmail, $subject, $body,  $altBody, $fromSubject);
+        if ($isEmailSent) {
+            return new JsonResponse(
+                ['message' => 'Password reset email sent'],
+                JsonResponse::HTTP_OK
+            );
+        } else {
+            return new JsonResponse(
+                ['message' => 'Password reset email clound not be sent. Please try again later.'],
+                JsonResponse::HTTP_INTERNAL_SERVER_ERROR
+            );
+        }
     }
 
     #[Route('/reset/{token}', name: 'reset', methods: ['POST'])]

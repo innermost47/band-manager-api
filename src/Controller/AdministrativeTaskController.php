@@ -45,23 +45,23 @@ class AdministrativeTaskController extends AbstractController
     {
         try {
             $currentUser = $this->getUser();
-    
+
             if (!$currentUser) {
                 return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
             }
-    
+
             try {
                 $projects = $this->projectRepository->findByMember($currentUser);
             } catch (\Exception $e) {
                 return $this->json(['error' => 'Failed to retrieve projects', 'details' => $e->getMessage()], JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
             }
-    
+
             try {
                 $tasks = $this->repository->findByProject($projects);
             } catch (\Exception $e) {
                 return $this->json(['error' => 'Failed to retrieve tasks', 'details' => $e->getMessage()], JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
             }
-    
+
             try {
                 $taskResponse = array_map(function ($task) {
                     return [
@@ -78,8 +78,7 @@ class AdministrativeTaskController extends AbstractController
                         'completedAt' => $task->getCompletedAt(),
                     ];
                 }, $tasks);
-    
-                // Préparer les projets pour la réponse
+
                 $projectResponse = array_map(function ($project) {
                     return [
                         'id' => $project->getId(),
@@ -205,4 +204,3 @@ class AdministrativeTaskController extends AbstractController
         return $this->json(['message' => 'Task deleted successfully'], JsonResponse::HTTP_OK);
     }
 }
-

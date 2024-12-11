@@ -67,7 +67,7 @@ class UserController extends AbstractController
             return $this->json(['error' => 'Email already exists'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
-        $existingUsernameUser = $this->userRepository->findOneBy(['username' => $data['username']]);
+        $existingUsernameUser = $this->userRepository->findOneBy(['username' => $data['name']]);
         if ($existingUsernameUser) {
             return $this->json(['error' => 'Username already exists'], JsonResponse::HTTP_BAD_REQUEST);
         }

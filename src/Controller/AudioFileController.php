@@ -18,7 +18,6 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
-use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\HttpFoundation\Response;
 
 #[Route('', name: 'audio_file_')]
@@ -29,6 +28,8 @@ class AudioFileController extends AbstractController
     private $songRepository;
     private $validator;
     private $audioFileTypeRepository;
+    private $uploadDir;
+    private $secretStreaming;
 
     public function __construct(
         EntityManagerInterface $entityManager,
@@ -46,7 +47,7 @@ class AudioFileController extends AbstractController
         $this->uploadDir = realpath($params->get('kernel.project_dir'))  . '/var/uploads/private/';
         $this->secretStreaming = $params->get("secret_streaming");
     }
-    
+
     private function verifyProjectAccess($project, $currentUser): bool
     {
         if (!$currentUser || !$project->getMembers()->contains($currentUser)) {
@@ -63,9 +64,9 @@ class AudioFileController extends AbstractController
         if (!$song) {
             return $this->json(['error' => 'Song not found'], JsonResponse::HTTP_NOT_FOUND);
         }
-        
+
         $currentUser = $this->getUser();
-        if(!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
+        if (!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
             return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
@@ -77,7 +78,7 @@ class AudioFileController extends AbstractController
 
         $fileMetadata = [];
         foreach ($audioFiles as $file) {
-            $expiresAt = time() + 3600; 
+            $expiresAt = time() + 3600;
             $signature = hash_hmac('sha256', $file->getId() . $expiresAt, $this->secretStreaming);
             $signedUrl = 'stream-audio/' . $file->getId() . '?expires=' . $expiresAt . '&signature=' . $signature;
 
@@ -92,19 +93,19 @@ class AudioFileController extends AbstractController
 
         return $this->json($fileMetadata, JsonResponse::HTTP_OK);
     }
-    
-    
+
+
     #[Route('/stream/{fileId}', name: 'stream_audio', methods: ['GET'])]
     public function streamAudio(int $fileId, Request $request): Response
     {
 
         $expires = $request->query->get('expires');
         $signature = $request->query->get('signature');
-    
+
         if (!$expires || !$signature || time() > $expires) {
             return $this->json(['error' => 'Link expired or invalid'], JsonResponse::HTTP_FORBIDDEN);
         }
-    
+
         $expectedSignature = hash_hmac('sha256', $fileId . $expires, $this->secretStreaming);
         if (!hash_equals($expectedSignature, $signature)) {
             return $this->json(['error' => 'Invalid signature'], JsonResponse::HTTP_FORBIDDEN);
@@ -172,9 +173,9 @@ class AudioFileController extends AbstractController
         if (!$song) {
             throw $this->createNotFoundException('Song not found');
         }
-        
+
         $currentUser = $this->getUser();
-        if(!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
+        if (!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
             return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
@@ -207,7 +208,7 @@ class AudioFileController extends AbstractController
             return $this->json(['error' => 'Song not found'], JsonResponse::HTTP_NOT_FOUND);
         }
         $currentUser = $this->getUser();
-        if(!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
+        if (!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
             return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
         $audioFileType = $this->audioFileTypeRepository->find($audioFileTypeId);
@@ -266,14 +267,14 @@ class AudioFileController extends AbstractController
         if (!$audioFile) {
             return $this->json(['error' => 'Audio file not found'], JsonResponse::HTTP_NOT_FOUND);
         }
-        
+
         $song = $audioFile->getSong();
-        
+
         $currentUser = $this->getUser();
-        if(!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
+        if (!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
             return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
-        
+
         $data = json_decode($request->getContent(), true);
 
         if (isset($data['description'])) {
@@ -306,11 +307,11 @@ class AudioFileController extends AbstractController
         if (!$audioFile) {
             return $this->json(['error' => 'File not found'], JsonResponse::HTTP_NOT_FOUND);
         }
-        
+
         $song = $audioFile->getSong();
-        
+
         $currentUser = $this->getUser();
-        if(!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
+        if (!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
             return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 

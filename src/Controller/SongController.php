@@ -30,7 +30,7 @@ class SongController extends AbstractController
     private $tablatureRepository;
     private $lyricsRepository;
     private $audioFileTypeRepository;
-    private $params;
+    private $secretStreaming;
 
     public function __construct(
         EntityManagerInterface $entityManager,
@@ -53,7 +53,7 @@ class SongController extends AbstractController
         $this->audioFileTypeRepository = $audioFileTypeRepository;
         $this->secretStreaming = $params->get("secret_streaming");
     }
-    
+
     private function verifyProjectAccess($project, $currentUser): bool
     {
         if (!$currentUser || !$project->getMembers()->contains($currentUser)) {
@@ -66,28 +66,28 @@ class SongController extends AbstractController
     public function show(int $id): JsonResponse
     {
         $song = $this->songRepository->find($id);
-    
+
         if (!$song) {
             return $this->json(['error' => 'Song not found'], JsonResponse::HTTP_NOT_FOUND);
         }
-        
+
         $currentUser = $this->getUser();
-        if(!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
+        if (!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
             return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
-    
+
         $audioFiles = $this->audioFileRepository->findBy(['song' => $song]);
         $tablatures = $this->tablatureRepository->findBy(['song' => $song]);
         $lyrics = $this->lyricsRepository->findBy(['song' => $song]);
         $audioFileTypes = $this->audioFileTypeRepository->findAll();
         $audioData = [];
-        
-        foreach($audioFiles as $audioFile) {
-            $expiresAt = time() + 3600; 
+
+        foreach ($audioFiles as $audioFile) {
+            $expiresAt = time() + 3600;
             $signature = hash_hmac('sha256', $audioFile->getId() . $expiresAt, $this->secretStreaming);
             $signedUrl = 'stream/' . $audioFile->getId() . '?expires=' . $expiresAt . '&signature=' . $signature;
 
-           array_push($audioData, [
+            array_push($audioData, [
                 'id' => $audioFile->getId(),
                 'filename' => $audioFile->getFilename(),
                 'path' => $audioFile->getPath(),
@@ -100,7 +100,7 @@ class SongController extends AbstractController
                 'signed_url' => $signedUrl,
             ]);
         }
-    
+
         $data = [
             'song' => $song,
             'audioFiles' => $audioData,
@@ -108,7 +108,7 @@ class SongController extends AbstractController
             'lyrics' => $lyrics,
             'audioFileTypes' => $audioFileTypes
         ];
-    
+
         return $this->json($data, JsonResponse::HTTP_OK, [], ['groups' => ['song', 'audioFile', 'tablature', 'lyrics', 'audioFileType']]);
     }
 
@@ -128,7 +128,7 @@ class SongController extends AbstractController
         if (!isset($data['project_id'])) {
             return $this->json(['error' => 'Project ID is required'], JsonResponse::HTTP_BAD_REQUEST);
         }
-        
+
         if (!isset($data['is_public'])) {
             return $this->json(['error' => 'Is public is required'], JsonResponse::HTTP_BAD_REQUEST);
         }
@@ -137,9 +137,9 @@ class SongController extends AbstractController
         if (!$project) {
             return $this->json(['error' => 'Project not found'], JsonResponse::HTTP_NOT_FOUND);
         }
-        
+
         $currentUser = $this->getUser();
-        if(!$this->verifyProjectAccess($project, $currentUser)) {
+        if (!$this->verifyProjectAccess($project, $currentUser)) {
             return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
@@ -168,9 +168,9 @@ class SongController extends AbstractController
         if (!$song) {
             return $this->json(['error' => 'Song not found'], JsonResponse::HTTP_NOT_FOUND);
         }
-        
+
         $currentUser = $this->getUser();
-        if(!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
+        if (!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
             return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
@@ -183,12 +183,12 @@ class SongController extends AbstractController
         if (isset($data['title']) && empty(trim($data['title']))) {
             return $this->json(['error' => 'Title cannot be empty'], JsonResponse::HTTP_BAD_REQUEST);
         }
-        
+
         if (isset($data['title'])) {
             $song->setTitle($data['title']);
         }
-        
-        if(isset($data['is_public'])) {
+
+        if (isset($data['is_public'])) {
             $song->setPublic($data['is_public']);
         }
 
@@ -202,7 +202,7 @@ class SongController extends AbstractController
         if (isset($data['scale'])) {
             $song->setScale(trim($data['scale']));
         }
-        
+
         if (isset($data['lyrics'])) {
             $lyrics = $this->lyricsRepository->findOneBy(['song' => $song]);
             if ($lyrics) {
@@ -237,9 +237,9 @@ class SongController extends AbstractController
         if (!$song) {
             return $this->json(['error' => 'Song not found'], JsonResponse::HTTP_NOT_FOUND);
         }
-        
+
         $currentUser = $this->getUser();
-        if(!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
+        if (!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
             return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
