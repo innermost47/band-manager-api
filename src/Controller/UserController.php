@@ -174,7 +174,7 @@ class UserController extends AbstractController
     }
 
     #[Route('/api/users/profile', name: 'get_profile', methods: ['GET'])]
-    public function getProfile(Request $request): JsonResponse
+    public function getProfile(): JsonResponse
     {
         try {
             $user = $this->getUser();

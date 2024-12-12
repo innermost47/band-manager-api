@@ -345,6 +345,7 @@ class InvitationController extends AbstractController
         $invitation = new Invitation();
         $invitation->setSender($currentUser);
         $invitation->setEmail($email);
+        $invitation->setUsername($email);
         $invitation->setProject($project);
         $invitation->setStatus('pending');
         $invitation->setToken($invitationCode);
