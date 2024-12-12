@@ -431,7 +431,7 @@ class InvitationController extends AbstractController
 
         $notificationData = $this->emailService->getInvitationAcceptedNotificationEmail($emailData);
 
-        $this->emailService->sendEmail(
+        $isEmailSent = $this->emailService->sendEmail(
             $sender->getEmail(),
             $notificationData['subject'],
             $notificationData['body'],
@@ -439,6 +439,16 @@ class InvitationController extends AbstractController
             $notificationData['fromSubject']
         );
 
-        return new JsonResponse(['message' => 'Successfully joined project'], JsonResponse::HTTP_OK);
+        if ($isEmailSent) {
+            return new JsonResponse(
+                ['message' => 'Successfully joined project.'],
+                JsonResponse::HTTP_OK
+            );
+        } else {
+            return new JsonResponse(
+                ['message' => 'An error occured. Please try again later.'],
+                JsonResponse::HTTP_INTERNAL_SERVER_ERROR
+            );
+        }
     }
 }
