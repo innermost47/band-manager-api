@@ -291,12 +291,13 @@ class InvitationController extends AbstractController
         }
 
         $project = $invitation->getProject();
-        $recipient = $invitation->getRecipient();
+        $recipientEmail = $invitation->getRecipient()
+            ? $invitation->getRecipient()->getEmail()
+            : $invitation->getEmail();
 
         $this->entityManager->remove($invitation);
         $this->entityManager->flush();
 
-        $recipientEmail = $recipient->getEmail();
         $emailData = $this->emailService->getCancellationEmail($project->getName(), $invitation->getType() === 'request');
         $isEmailSent = $this->emailService->sendEmail(
             $recipientEmail,
