@@ -317,4 +317,129 @@ class InvitationController extends AbstractController
             );
         }
     }
+
+    #[Route('/invite-by-email', name: 'invite_by_email', methods: ['POST'])]
+    public function inviteByEmail(Request $request, UserRepository $userRepository): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true);
+        $email = $data['email'] ?? null;
+        $projectId = $data['projectId'] ?? null;
+
+        if (!$email || !$projectId) {
+            return $this->json(['error' => 'Missing required fields'], 400);
+        }
+
+        $currentUser = $this->getUser();
+        $project = $this->projectRepository->find($projectId);
+
+        $isOwner = $project->getMembers()->contains($currentUser);
+        if (!$project || $isOwner) {
+            return $this->json(['error' => 'Project not found or you are not the owner'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $existingUser = $userRepository->findOneBy(['email' => $email]);
+
+        $invitationCode = strtoupper(substr(bin2hex(random_bytes(8)), 0, 8));
+
+        $invitation = new Invitation();
+        $invitation->setSender($currentUser);
+        $invitation->setEmail($email);
+        $invitation->setProject($project);
+        $invitation->setStatus('pending');
+        $invitation->setToken($invitationCode);
+        $invitation->setType('code_invitation');
+        $invitation->setExpiresAt(new \DateTime('+7 days'));
+
+        if ($existingUser) {
+            $invitation->setRecipient($existingUser);
+            $invitation->setUsername($existingUser->getUsername());
+        }
+
+        $this->entityManager->persist($invitation);
+        $this->entityManager->flush();
+
+        $emailData = [
+            'isRegistered' => $existingUser !== null,
+            'username' => $existingUser ? $existingUser->getUsername() : null,
+            'projectName' => $project->getName(),
+            'invitationCode' => $invitationCode,
+            'registrationUrl' => $this->getParameter('app.frontend_url') . '/register?invitation=' . $invitationCode
+        ];
+
+        $emailData = $this->emailService->getCodeInvitationEmail($emailData);
+
+        $isEmailSent = $this->emailService->sendEmail(
+            $email,
+            $emailData['subject'],
+            $emailData['body'],
+            $emailData['altBody'],
+            $emailData['fromSubject']
+        );
+
+        if ($isEmailSent) {
+            return new JsonResponse(
+                ['message' => 'Invitation sent successfully.'],
+                JsonResponse::HTTP_OK
+            );
+        } else {
+            return new JsonResponse(
+                ['message' => 'Invitation could not be sent. Please try again later.'],
+                JsonResponse::HTTP_INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    #[Route('/join-with-code', name: 'join_with_code', methods: ['POST'])]
+    public function joinWithCode(Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true);
+        $code = $data['code'] ?? null;
+
+        if (!$code) {
+            return $this->json(['error' => 'Missing invitation code'], 400);
+        }
+
+        $invitation = $this->invitationRepository->findOneBy([
+            'token' => $code,
+            'type' => 'code_invitation',
+            'status' => 'pending'
+        ]);
+
+        if (!$invitation || $invitation->getExpiresAt() < new \DateTime()) {
+            return $this->json(['error' => 'Invalid or expired invitation code'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        $currentUser = $this->getUser();
+        if ($invitation->getEmail() !== $currentUser->getEmail()) {
+            return $this->json(['error' => 'This invitation code is not associated with your email'], 403);
+        }
+
+        $project = $invitation->getProject();
+        $project->addMember($currentUser);
+        $invitation->setStatus('accepted');
+        $invitation->setRecipient($currentUser);
+
+        $this->entityManager->persist($project);
+        $this->entityManager->persist($invitation);
+        $this->entityManager->flush();
+
+        $sender = $invitation->getSender();
+        $emailData = [
+            'senderName' => $sender->getUsername(),
+            'recipientName' => $currentUser->getUsername(),
+            'projectName' => $project->getName()
+        ];
+
+        $notificationData = $this->emailService->getInvitationAcceptedNotificationEmail($emailData);
+
+        $this->emailService->sendEmail(
+            $sender->getEmail(),
+            $notificationData['subject'],
+            $notificationData['body'],
+            $notificationData['altBody'],
+            $notificationData['fromSubject']
+        );
+
+        return new JsonResponse(['message' => 'Successfully joined project'], JsonResponse::HTTP_OK);
+    }
 }

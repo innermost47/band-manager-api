@@ -113,6 +113,45 @@ class EmailService
         display: inline-block;
         margin: 10px 0;
     }
+
+    .invitation-code {
+        background-color: #f8f9fa;
+        border: 2px dashed #dee2e6;
+        padding: 20px;
+        margin: 20px 0;
+        text-align: center;
+        font-size: 24px;
+        font-family: monospace;
+        letter-spacing: 5px;
+        border-radius: 5px;
+    }
+    
+    .steps {
+        background-color: #f8f9fa;
+        padding: 20px;
+        margin: 20px 0;
+        border-radius: 5px;
+    }
+    
+    .steps ol {
+        margin: 0;
+        padding-left: 20px;
+    }
+    
+    .steps li {
+        margin: 10px 0;
+    }
+    
+    .cta-button {
+        background-color: #28a745;
+        color: white;
+        padding: 15px 30px;
+        border-radius: 5px;
+        text-decoration: none;
+        display: inline-block;
+        margin: 20px 0;
+        text-align: center;
+    }
 ";
 
     public function __construct(ParameterBagInterface $params)
@@ -471,6 +510,95 @@ class EmailService
             "subject" => $title,
             "body" => $this->getBaseTemplate($content, $title),
             "altBody" => $this->getPlainTextVersion($content, $title)
+        ];
+    }
+
+    public function getInvitationAcceptedNotificationEmail(array $data): array
+    {
+        $content = "
+            <p>Hello {$data['senderName']},</p>
+            
+            <p>Good news! <strong>{$data['recipientName']}</strong> has accepted your invitation to join the project:</p>
+            
+            <div class='project-name'>{$data['projectName']}</div>
+            
+            <div class='success-box'>
+                <strong>✓ New Member Added!</strong>
+                <p>They can now access and contribute to the project.</p>
+            </div>
+            
+            <div class='info-box'>
+                <strong>Next Steps:</strong>
+                <ul>
+                    <li>You can start collaborating with them on the project</li>
+                    <li>They have full access to project resources</li>
+                    <li>You can manage their permissions from the project settings</li>
+                </ul>
+            </div>
+            
+            <p>Best regards,<br>BandManager</p>
+        ";
+
+        return [
+            "fromSubject" => "Invitation Accepted!",
+            "subject" => "{$data['recipientName']} has joined your project",
+            "body" => $this->getBaseTemplate($content, "Invitation Accepted"),
+            "altBody" => $this->getPlainTextVersion($content, "Invitation Accepted")
+        ];
+    }
+
+    public function getCodeInvitationEmail(array $data): array
+    {
+        $isRegistered = $data['isRegistered'];
+        $content = "
+            <p>Hello" . ($isRegistered ? " {$data['username']}" : "") . ",</p>
+            
+            <p>" . ($isRegistered ? "You have" : "Someone has") . " been invited to join the project:</p>
+            
+            <div class='project-name'>{$data['projectName']}</div>
+            
+            <div class='invitation-code'>
+                {$data['invitationCode']}
+            </div>
+            
+            " . ($isRegistered ? "
+                <div class='steps'>
+                    <strong>How to join this project:</strong>
+                    <ol>
+                        <li>Go to your BandManager dashboard</li>
+                        <li>Click on 'Join Project'</li>
+                        <li>Enter the invitation code shown above</li>
+                    </ol>
+                </div>
+            " : "
+                <div class='steps'>
+                    <strong>How to join this project:</strong>
+                    <ol>
+                        <li>Create your BandManager account by clicking the button below</li>
+                        <li>Once registered, go to 'Join Project' in your dashboard</li>
+                        <li>Enter the invitation code shown above</li>
+                    </ol>
+                </div>
+                
+                <a href='{$data['registrationUrl']}' class='cta-button'>
+                    Create Your Account
+                </a>
+            ") . "
+            
+            <div class='warning-box'>
+                <strong>Important:</strong> This invitation code will expire in 7 days.
+            </div>
+            
+            <p>If you have any questions or need assistance, feel free to contact us.</p>
+            
+            <p>Best regards,<br>BandManager</p>
+        ";
+
+        return [
+            "fromSubject" => "Project Invitation",
+            "subject" => "You've been invited to join " . $data['projectName'],
+            "body" => $this->getBaseTemplate($content, "Project Invitation"),
+            "altBody" => $this->getPlainTextVersion($content, "Project Invitation")
         ];
     }
 
