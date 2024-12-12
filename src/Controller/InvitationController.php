@@ -333,7 +333,7 @@ class InvitationController extends AbstractController
         $project = $this->projectRepository->find($projectId);
 
         $isOwner = $project->getMembers()->contains($currentUser);
-        if (!$project || $isOwner) {
+        if (!$project || !$isOwner) {
             return $this->json(['error' => 'Project not found or you are not the owner'], JsonResponse::HTTP_FORBIDDEN);
         }
 
