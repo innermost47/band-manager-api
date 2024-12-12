@@ -9,6 +9,7 @@ parameters:
   jwt_secret: "%env(JWT_SECRET)%"
   secret_streaming: "%env(SECRET_STREAMING)%"
   app.max_users: 30
+  frontend_url: "%env(FRONT_END_URL)%"
 
 services:
   _defaults:

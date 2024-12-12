@@ -565,8 +565,8 @@ class EmailService
                 <div class='steps'>
                     <strong>How to join this project:</strong>
                     <ol>
-                        <li>Go to your BandManager dashboard</li>
-                        <li>Click on 'Join Project'</li>
+                        <li>Login to your BandManager account</li>
+                        <li>Click on 'Join Project' in the navigation menu at the top of the page</li>
                         <li>Enter the invitation code shown above</li>
                     </ol>
                 </div>
@@ -575,7 +575,7 @@ class EmailService
                     <strong>How to join this project:</strong>
                     <ol>
                         <li>Create your BandManager account by clicking the button below</li>
-                        <li>Once registered, go to 'Join Project' in your dashboard</li>
+                        <li>After logging in, find 'Join Project' in the navigation menu at the top of the page</li>
                         <li>Enter the invitation code shown above</li>
                     </ol>
                 </div>
@@ -586,7 +586,11 @@ class EmailService
             ") . "
             
             <div class='warning-box'>
-                <strong>Important:</strong> This invitation code will expire in 7 days.
+                <strong>Important:</strong>
+                <ul style='margin: 10px 0 0 0; padding-left: 20px;'>
+                    <li>This invitation code will expire in 7 days</li>
+                    <li>You can find 'Join Project' in the main menu of BandManager at any time</li>
+                </ul>
             </div>
             
             <p>If you have any questions or need assistance, feel free to contact us.</p>

@@ -348,7 +348,6 @@ class InvitationController extends AbstractController
         $invitation->setStatus('pending');
         $invitation->setToken($invitationCode);
         $invitation->setType('code_invitation');
-        $invitation->setExpiresAt(new \DateTime('+7 days'));
 
         if ($existingUser) {
             $invitation->setRecipient($existingUser);
@@ -363,7 +362,7 @@ class InvitationController extends AbstractController
             'username' => $existingUser ? $existingUser->getUsername() : null,
             'projectName' => $project->getName(),
             'invitationCode' => $invitationCode,
-            'registrationUrl' => $this->getParameter('app.frontend_url') . '/register?invitation=' . $invitationCode
+            'registrationUrl' => $this->getParameter('frontend_url') . '/signup'
         ];
 
         $emailData = $this->emailService->getCodeInvitationEmail($emailData);
