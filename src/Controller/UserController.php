@@ -119,14 +119,14 @@ class UserController extends AbstractController
         $this->entityManager->flush();
 
         $recipientEmail = $user->getEmail();
-        $subject = "Verify Your Email";
-        $fromSubject = 'Account Verification';
-        $body = "Thank you for signing up.\n\n" .
-            "Please use the following code to verify your account:\n\n" .
-            "Verification Code: $verificationCode\n\n" .
-            "If you did not sign up, please ignore this email.";
-        $altBody = $body;
-        $isEmailSent = $this->emailService->sendEmail($recipientEmail, $subject, $body,  $altBody, $fromSubject);
+        $emailData = $this->emailService->getEmailVerificationEmail($verificationCode);
+        $isEmailSent = $this->emailService->sendEmail(
+            $recipientEmail,
+            $emailData['subject'],
+            $emailData['body'],
+            $emailData['altBody'],
+            $emailData['fromSubject']
+        );
         if ($isEmailSent) {
             return new JsonResponse(
                 ['message' => 'User created successfully. Verification code sent to email.'],
@@ -336,7 +336,7 @@ class UserController extends AbstractController
     }
 
     #[Route('/api/users/projects/{id}', name: 'get_projects', methods: ['GET'])]
-    public function getUserProjects(Request $request, int $id): JsonResponse
+    public function getUserProjects(int $id): JsonResponse
     {
         try {
             $user = $this->getUser();

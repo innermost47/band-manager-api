@@ -20,7 +20,6 @@ class SendEventRemindersCommand extends Command
 
     private $eventRepository;
     private $emailService;
-    private $params;
 
     public function __construct(EventRepository $eventRepository, ParameterBagInterface $params)
     {
@@ -43,18 +42,21 @@ class SendEventRemindersCommand extends Command
 
         foreach ($events as $event) {
             foreach ($event->getProject()->getMembers() as $user) {
-                $recipientEmail = $user->getEmail();
-                $fromSubject = 'Event Reminder';
-                $subject = 'Event Reminder: ' . $event->getName();
-                $body = sprintf(
-                    "Hello %s, An event you are associated with is scheduled: Name: %s | Location: %s | Date: %s Best regards, BandManager",
-                    $user->getUsername(),
-                    $event->getName(),
-                    $event->getLocation(),
-                    $event->getStartDate()->format('Y-m-d H:i:s')
+                $eventData = [
+                    'username' => $user->getUsername(),
+                    'name' => $event->getName(),
+                    'location' => $event->getLocation(),
+                    'date' => $event->getStartDate()->format('Y-m-d H:i:s')
+                ];
+
+                $emailData = $this->emailService->getEventReminderEmail($eventData);
+                $this->emailService->sendEmail(
+                    $user->getEmail(),
+                    $emailData['subject'],
+                    $emailData['body'],
+                    $emailData['altBody'],
+                    $emailData['fromSubject']
                 );
-                $altBody = $body;
-                $this->emailService->sendEmail($recipientEmail, $subject, $body,  $altBody, $fromSubject);
             }
         }
         return Command::SUCCESS;

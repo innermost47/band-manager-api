@@ -78,28 +78,16 @@ class InvitationController extends AbstractController
 
         $this->entityManager->persist($invitation);
         $this->entityManager->flush();
+
         $recipientEmail = $recipient->getEmail();
-        $subject = 'You\'ve been invited to join a project';
-        $body = "Hello,
-        
-        You have been invited to join the project: " . $project->getName() . ".
-        
-        To respond to this invitation, please visit your profile page and review the invitation.
-        
-        If you have any questions, feel free to contact us.
-        
-        Best regards,
-        Band Manager";
-        $altBody = "Hello,
-        
-        You have been invited to join the project: " . $project->getName() . ".
-        
-        To respond to this invitation, visit your profile page and review the invitation.
-        
-        Best regards,
-        Band Manager";
-        $fromSubject = 'Project Invitation';
-        $isEmailSent = $this->emailService->sendEmail($recipientEmail, $subject, $body,  $altBody, $fromSubject);
+        $emailData = $this->emailService->getProjectInvitationEmail($project->getName());
+        $isEmailSent = $this->emailService->sendEmail(
+            $recipientEmail,
+            $emailData['subject'],
+            $emailData['body'],
+            $emailData['altBody'],
+            $emailData['fromSubject']
+        );
         if ($isEmailSent) {
             return new JsonResponse(
                 ['message' => 'Invitation sent successfully.'],
@@ -177,30 +165,16 @@ class InvitationController extends AbstractController
 
         $this->entityManager->persist($invitation);
         $this->entityManager->flush();
+
         $recipientEmail = $targetUser->getEmail();
-        $subject = 'New Collaboration Request';
-        $fromSubject = 'Collaboration Request';
-        $body = "Hello,
-        
-        " . $currentUser->getUsername() . " has requested to join your project: " . $project->getName() . ".
-        
-        To respond to this request, please visit your project management page.
-        
-        If you have any questions, feel free to contact us.
-        
-        Best regards,
-        Band Manager";
-
-        $altBody = "Hello,
-        
-        " . $currentUser->getUsername() . " has requested to join your project: " . $project->getName() . ".
-        
-        To respond to this request, visit your project management page.
-        
-        Best regards,
-        Band Manager";
-        $isEmailSent = $this->emailService->sendEmail($recipientEmail, $subject, $body,  $altBody, $fromSubject);
-
+        $emailData = $this->emailService->getCollaborationRequestEmail($currentUser->getUsername(), $project->getName());
+        $isEmailSent = $this->emailService->sendEmail(
+            $recipientEmail,
+            $emailData['subject'],
+            $emailData['body'],
+            $emailData['altBody'],
+            $emailData['fromSubject']
+        );
         if ($isEmailSent) {
             return new JsonResponse(
                 ['message' => 'Collaboration request sent successfully.'],
@@ -250,35 +224,14 @@ class InvitationController extends AbstractController
         $this->entityManager->flush();
 
         $recipientEmail = $sender->getEmail();
-        $subject = $invitation->getType() === 'request' ? 'Collaboration Request Accepted' : 'Invitation Accepted';
-        $body = "";
-        if ($invitation->getType() === 'request') {
-            $body = "Hello,
-            
-            We are happy to inform you that your request to join the project: {$project->getName()} has been accepted.
-            
-            You are now part of this project.
-            
-            If you have any further questions, feel free to contact us.
-            
-            Best regards,  
-            Band Manager";
-        } else {
-            $body = "Hello,
-            
-            We are happy to inform you that the invitation to join the project: {$project->getName()} has been accepted.
-            
-            The invited member is now part of your project.
-            
-            If you have any further questions, feel free to contact us.
-            
-            Best regards,  
-            Band Manager";
-        }
-
-        $altBody = $body;
-        $isEmailSent = $this->emailService->sendEmail($recipientEmail, $subject, $body,  $altBody, $subject);
-
+        $emailData = $this->emailService->getAcceptanceEmail($project->getName(), $invitation->getType() === 'request');
+        $isEmailSent = $this->emailService->sendEmail(
+            $recipientEmail,
+            $emailData['subject'],
+            $emailData['body'],
+            $emailData['altBody'],
+            $emailData['fromSubject']
+        );
         if ($isEmailSent) {
             return new JsonResponse(
                 ['message' => $invitation->getType() === 'request' ? 'Request accepted.' : 'Invitation accepted.'],
@@ -307,33 +260,15 @@ class InvitationController extends AbstractController
         $this->entityManager->flush();
 
         $recipientEmail = $sender->getEmail();
-        $subject = $invitation->getType() === 'request' ? 'Collaboration Request Declined' : 'Invitation Declined';
-        $body = "";
-
-        if ($invitation->getType() === 'request') {
-            $body = "Hello,
-            
-            We regret to inform you that your request to join the project: {$project->getName()} has been declined.
-            
-            If you have any questions, feel free to contact us.
-            
-            Best regards,  
-            Band Manager";
-        } else {
-            $body = "Hello,
-            
-            We regret to inform you that the invitation to join the project: {$project->getName()} has been declined by the recipient.
-            
-            If you wish to send another invitation or have any questions, feel free to contact us.
-            
-            Best regards,  
-            Band Manager";
-        }
-
-        $altBody = $body;
-        $isEmailSent = $this->emailService->sendEmail($recipientEmail, $subject, $body,  $altBody, $subject);
-
-        if ($isEmailSent->send()) {
+        $emailData = $this->emailService->getDeclineEmail($project->getName(), $invitation->getType() === 'request');
+        $isEmailSent = $this->emailService->sendEmail(
+            $recipientEmail,
+            $emailData['subject'],
+            $emailData['body'],
+            $emailData['altBody'],
+            $emailData['fromSubject']
+        );
+        if ($isEmailSent) {
             return new JsonResponse(
                 ['message' => $invitation->getType() === 'request' ? 'Request declined.' : 'Invitation declined.'],
                 JsonResponse::HTTP_OK
@@ -362,33 +297,15 @@ class InvitationController extends AbstractController
         $this->entityManager->flush();
 
         $recipientEmail = $recipient->getEmail();
-        $subject = $invitation->getType() === 'request' ? 'Collaboration Request Cancelled' : 'Invitation Cancelled';
-        $body = "";
-
-        if ($invitation->getType() === 'request') {
-            $body = "Hello,
-            
-            The collaboration request for the project: {$project->getName()} has been cancelled.
-            
-            If this was not intentional or you need assistance, feel free to contact us.
-            
-            Best regards,  
-            Band Manager";
-        } else {
-            $body = "Hello,
-            
-            The invitation to join the project: {$project->getName()} has been cancelled by the sender.
-            
-            If this was not intentional or you need assistance, feel free to contact us.
-            
-            Best regards,  
-            Band Manager";
-        }
-
-        $altBody = $body;
-        $isEmailSent = $this->emailService->sendEmail($recipientEmail, $subject, $body,  $altBody, $subject);
-
-        if ($isEmailSent->send()) {
+        $emailData = $this->emailService->getCancellationEmail($project->getName(), $invitation->getType() === 'request');
+        $isEmailSent = $this->emailService->sendEmail(
+            $recipientEmail,
+            $emailData['subject'],
+            $emailData['body'],
+            $emailData['altBody'],
+            $emailData['fromSubject']
+        );
+        if ($isEmailSent) {
             return new JsonResponse(
                 ['message' => $invitation->getType() === 'request' ? 'Request cancelled.' : 'Invitation cancelled.'],
                 JsonResponse::HTTP_OK

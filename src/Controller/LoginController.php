@@ -42,7 +42,7 @@ class LoginController
         $totalUsers = $this->userRepository->count([]);
         $maxUsers = $this->params->get('app.max_users');
         $remainingSlots = max(0, $maxUsers - $totalUsers);
-        
+
         return new JsonResponse([
             'canRegister' => $totalUsers < $maxUsers,
             'totalUsers' => $totalUsers,
@@ -96,12 +96,8 @@ class LoginController
             }
 
             $recipientEmail = $user->getEmail();
-            $fromSubject = 'Verify2fa';
-            $subject = 'Your Two-Factor Authentication Code';
-            $body = "Your verification code is: $twoFactorCode. It will expire in 10 minutes.";
-            $altBody = $body;
-
-            $isEmailSent = $this->emailService->sendEmail($recipientEmail, $subject, $body,  $altBody, $fromSubject);
+            $emailData = $this->emailService->getVerify2faEmail($twoFactorCode);
+            $isEmailSent = $this->emailService->sendEmail($recipientEmail, $emailData['subject'], $emailData['body'],  $emailData['altBody'], $$emailData['fromSubjet']);
 
             if ($isEmailSent) {
                 return new JsonResponse(

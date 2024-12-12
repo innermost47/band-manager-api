@@ -50,17 +50,15 @@ class ForgotPasswordController extends AbstractController
         $this->entityManager->flush();
 
         $recipientEmail = $user->getEmail();
-        $subject = 'Password Reset Verification Code';
-        $body = sprintf(
-            '<p>Your verification code is: <strong>%s</strong></p>
-            <p>This code will expire in 15 minutes.</p>
-            <p>If you did not request this code, please ignore this email.</p>',
-            $verificationCode
-        );
-        $altBody = strip_tags($body);
-        $fromSubject = $subject;
+        $emailData = $this->emailService->getPasswordResetVerificationEmail($verificationCode);
 
-        $isEmailSent = $this->emailService->sendEmail($recipientEmail, $subject, $body, $altBody, $fromSubject);
+        $isEmailSent = $this->emailService->sendEmail(
+            $recipientEmail,
+            $emailData['subject'],
+            $emailData['body'],
+            $emailData['altBody'],
+            $emailData['fromSubject']
+        );
 
         if ($isEmailSent) {
             return new JsonResponse(
