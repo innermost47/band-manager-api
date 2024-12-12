@@ -404,8 +404,8 @@ class InvitationController extends AbstractController
             'status' => 'pending'
         ]);
 
-        if (!$invitation || $invitation->getExpiresAt() < new \DateTime()) {
-            return $this->json(['error' => 'Invalid or expired invitation code'], JsonResponse::HTTP_BAD_REQUEST);
+        if (!$invitation) {
+            return $this->json(['error' => 'Invalid invitation code'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $currentUser = $this->getUser();
