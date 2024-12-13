@@ -51,6 +51,32 @@ class LoginController
         ]);
     }
 
+    #[Route('/check-invitation-availability', name: 'check_invitation_availability', methods: ['GET'])]
+    public function checkInvitationAvailability(): JsonResponse
+    {
+        $result = [
+            'canInvite' => false,
+            'reason' => null,
+            'waitTime' => null,
+            'totalUsers' => null,
+            'maxUsers' => null,
+            'remainingSlots' => null
+        ];
+        $totalUsers = $this->userRepository->count([]);
+        $maxUsers = $this->params->get('max_users');
+        $remainingSlots = max(0, $maxUsers - $totalUsers);
+        $result['totalUsers'] = $totalUsers;
+        $result['maxUsers'] = $maxUsers;
+        $result['remainingSlots'] = $remainingSlots;
+        if ($totalUsers >= ($maxUsers - 5)) {
+            $result['canInvite'] = false;
+            $result['reason'] = 'user_limit_reached';
+            return new JsonResponse($result);
+        }
+        $result['canInvite'] = true;
+        return new JsonResponse($result);
+    }
+
     #[Route('/login', name: 'login', methods: ['POST'])]
     public function login(Request $request): JsonResponse
     {
