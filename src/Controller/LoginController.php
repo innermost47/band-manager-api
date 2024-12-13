@@ -40,7 +40,7 @@ class LoginController
     public function checkRegistrationAvailability(): JsonResponse
     {
         $totalUsers = $this->userRepository->count([]);
-        $maxUsers = $this->params->get('app.max_users');
+        $maxUsers = $this->params->get('max_users');
         $remainingSlots = max(0, $maxUsers - $totalUsers);
 
         return new JsonResponse([

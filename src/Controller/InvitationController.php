@@ -66,6 +66,13 @@ class InvitationController extends AbstractController
             );
         }
 
+        if ($project->getMembers()->contains($recipient)) {
+            return $this->json(
+                ['error' => 'User is already a member of this project'],
+                JsonResponse::HTTP_CONFLICT
+            );
+        }
+
         $invitation = new Invitation();
         $invitation->setSender($this->getUser());
         $invitation->setRecipient($recipient);
@@ -338,6 +345,62 @@ class InvitationController extends AbstractController
             return $this->json(['error' => 'Project not found or you are not the owner'], JsonResponse::HTTP_FORBIDDEN);
         }
 
+        $totalUsers = $userRepository->count([]);
+        $maxUsers = $this->getParameter('max_users');
+        if ($totalUsers >= ($maxUsers - 5)) {
+            return $this->json(
+                ['error' => 'Maximum number of users almost reached. New invitations are disabled.'],
+                JsonResponse::HTTP_FORBIDDEN
+            );
+        }
+
+        $acceptedInvitation = $this->entityManager->getRepository(Invitation::class)->findOneBy([
+            'email' => $email,
+            'project' => $project,
+            'status' => 'accepted'
+        ]);
+
+        if ($acceptedInvitation) {
+            return $this->json(
+                ['error' => 'This user is already a member of the project'],
+                JsonResponse::HTTP_CONFLICT
+            );
+        }
+
+        $lastInvitation = $this->invitationRepository->findOneBy(
+            ['email' => $email, 'project' => $project],
+            ['createdAt' => 'DESC']
+        );
+
+        $now = new \DateTimeImmutable();
+
+        if ($lastInvitation) {
+            if ($lastInvitation->getStatus() === 'pending' && $lastInvitation->getExpiresAt() > $now) {
+                return $this->json(
+                    ['error' => 'An invitation is already pending for this email in this project'],
+                    JsonResponse::HTTP_CONFLICT
+                );
+            }
+
+            if ($lastInvitation->getExpiresAt() <= $now) {
+                if ($lastInvitation->getAttempts() >= 3) {
+                    return $this->json(
+                        ['error' => 'Maximum number of invitation attempts reached. Please contact support.'],
+                        JsonResponse::HTTP_FORBIDDEN
+                    );
+                }
+                $waitingTime = 3600;
+                $timeSinceLastInvitation = $now->getTimestamp() - $lastInvitation->getExpiresAt()->getTimestamp();
+                if ($timeSinceLastInvitation < $waitingTime) {
+                    $remainingTime = ceil(($waitingTime - $timeSinceLastInvitation) / 60);
+                    return $this->json(
+                        ['error' => "Please wait {$remainingTime} minutes before sending a new invitation."],
+                        JsonResponse::HTTP_TOO_MANY_REQUESTS
+                    );
+                }
+            }
+        }
+
         $existingUser = $userRepository->findOneBy(['email' => $email]);
 
         $invitationCode = strtoupper(substr(bin2hex(random_bytes(8)), 0, 8));
@@ -350,6 +413,8 @@ class InvitationController extends AbstractController
         $invitation->setStatus('pending');
         $invitation->setToken($invitationCode);
         $invitation->setType('code_invitation');
+        $invitation->setExpiresAt(new \DateTimeImmutable('+7 days'));
+        $invitation->setAttempts($lastInvitation ? $lastInvitation->getAttempts() + 1 : 1);
 
         if ($existingUser) {
             $invitation->setRecipient($existingUser);
@@ -406,8 +471,8 @@ class InvitationController extends AbstractController
             'status' => 'pending'
         ]);
 
-        if (!$invitation) {
-            return $this->json(['error' => 'Invalid invitation code'], JsonResponse::HTTP_BAD_REQUEST);
+        if (!$invitation || $invitation->getExpiresAt() < new \DateTimeImmutable()) {
+            return $this->json(['error' => 'Invalid or expired invitation code'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $currentUser = $this->getUser();

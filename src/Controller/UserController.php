@@ -61,7 +61,7 @@ class UserController extends AbstractController
         }
 
         $totalUsers = $this->userRepository->count([]);
-        $maxUsers = $this->params->get('app.max_users');
+        $maxUsers = $this->params->get('max_users');
         if ($totalUsers >= $maxUsers) {
             return $this->json([
                 'error' => sprintf('Maximum number of users (%d) reached. Cannot create new account.', $maxUsers)

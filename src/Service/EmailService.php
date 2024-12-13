@@ -532,7 +532,6 @@ class EmailService
                 <ul>
                     <li>You can start collaborating with them on the project</li>
                     <li>They have full access to project resources</li>
-                    <li>You can manage their permissions from the project settings</li>
                 </ul>
             </div>
             

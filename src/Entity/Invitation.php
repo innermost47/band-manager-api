@@ -44,6 +44,12 @@ class Invitation
     #[Groups(['user'])]
     private ?string $username = null;
 
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $expiresAt = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?int $attempts = null;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -141,6 +147,30 @@ class Invitation
     public function setUsername(?string $username): static
     {
         $this->username = $username;
+
+        return $this;
+    }
+
+    public function getExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->expiresAt;
+    }
+
+    public function setExpiresAt(?\DateTimeImmutable $expiresAt): static
+    {
+        $this->expiresAt = $expiresAt;
+
+        return $this;
+    }
+
+    public function getAttempts(): ?int
+    {
+        return $this->attempts;
+    }
+
+    public function setAttempts(?int $attempts): static
+    {
+        $this->attempts = $attempts;
 
         return $this;
     }
