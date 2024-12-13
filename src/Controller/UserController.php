@@ -289,7 +289,7 @@ class UserController extends AbstractController
             }
 
             $userProjects = array_filter($user->getProjects()->toArray(), function ($project) {
-                return is_object($project) && method_exists($project, 'isPublic') && $project->isPublic();
+                return is_object($project);
             });
 
             $responseData = [];
