@@ -38,8 +38,7 @@ class SendEventRemindersCommand extends Command
         $now = new \DateTimeImmutable();
         $reminderTime = $now->modify('+24 hours');
 
-        $events = $this->eventRepository->findAllEventsUpTo($reminderTime);
-
+        $events = $this->eventRepository->findEventsForNext24Hours($reminderTime);
         foreach ($events as $event) {
             foreach ($event->getProject()->getMembers() as $user) {
                 $eventData = [
