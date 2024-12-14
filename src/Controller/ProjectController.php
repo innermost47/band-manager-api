@@ -16,8 +16,7 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
-use PHPMailer\PHPMailer\PHPMailer;
-use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use App\Service\NotificationService;
 
 #[Route('/api/projects', name: 'project_')]
 class ProjectController extends AbstractController
@@ -26,11 +25,11 @@ class ProjectController extends AbstractController
     private $repository;
     private $validator;
     private $songRepository;
-    private $params;
     private $userRepository;
     private $audioFileRepository;
     private $invitationRepository;
     private $secretStreaming;
+    private $notificationService;
 
     public function __construct(
         EntityManagerInterface $entityManager,
@@ -40,17 +39,18 @@ class ProjectController extends AbstractController
         ParameterBagInterface $params,
         UserRepository $userRepository,
         AudioFileRepository $audioFileRepository,
-        InvitationRepository $invitationRepository
+        InvitationRepository $invitationRepository,
+        NotificationService $notificationService
     ) {
         $this->entityManager = $entityManager;
         $this->repository = $repository;
         $this->validator = $validator;
         $this->songRepository = $songRepository;
-        $this->params = $params;
         $this->userRepository = $userRepository;
         $this->secretStreaming = $params->get("secret_streaming");
         $this->audioFileRepository = $audioFileRepository;
         $this->invitationRepository = $invitationRepository;
+        $this->notificationService = $notificationService;
     }
 
     #[Route('', name: 'list', methods: ['GET'])]
@@ -126,7 +126,35 @@ class ProjectController extends AbstractController
 
             $project->removeMember($member);
             $this->entityManager->flush();
-            $this->entityManager->commit();
+            $this->notificationService->notifyProjectMembers(
+                sprintf(
+                    '%s removed %s from the project "%s"',
+                    $currentUser->getUsername(),
+                    $member->getUsername(),
+                    $project->getName()
+                ),
+                'project_member_removed',
+                sprintf(
+                    '/projects/%d',
+                    $project->getId()
+                ),
+                $project,
+                [
+                    'projectName' => $project->getName(),
+                    'removedMemberName' => $member->getUsername()
+                ]
+            );
+            $this->notificationService->createSingleNotification(
+                $member,
+                sprintf(
+                    'You have been removed from the project "%s"',
+                    $project->getName()
+                ),
+                'project_removal_notification',
+                '/projects',
+                $project,
+                ['projectName' => $project->getName()]
+            );
 
             return $this->json(['message' => 'Member removed successfully'], JsonResponse::HTTP_OK);
         } catch (\Exception $e) {
@@ -297,6 +325,21 @@ class ProjectController extends AbstractController
             $project->setProfileImage($filename);
             $this->entityManager->flush();
 
+            $this->notificationService->notifyProjectMembers(
+                sprintf(
+                    '%s updated the project image of "%s"',
+                    $currentUser->getUsername(),
+                    $project->getName()
+                ),
+                'project_image_updated',
+                sprintf(
+                    '/projects/%d',
+                    $project->getId()
+                ),
+                $project,
+                ['projectName' => $project->getName()]
+            );
+
             return $this->json(['message' => 'Image uploaded successfully'], JsonResponse::HTTP_OK);
         } catch (\Exception $e) {
             return $this->json(['error' => 'File upload failed', 'details' => $e->getMessage()], JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
@@ -398,6 +441,24 @@ class ProjectController extends AbstractController
 
         $this->entityManager->flush();
 
+        $this->notificationService->notifyProjectMembers(
+            sprintf(
+                '%s updated the project "%s"',
+                $currentUser->getUsername(),
+                $project->getName()
+            ),
+            'project_updated',
+            sprintf(
+                '/projects/%d',
+                $project->getId()
+            ),
+            $project,
+            [
+                'projectName' => $project->getName(),
+                'updatedFields' => array_keys($data)
+            ]
+        );
+
         return $this->json($project, JsonResponse::HTTP_OK, [], ['groups' => 'project']);
     }
 
@@ -426,7 +487,20 @@ class ProjectController extends AbstractController
             }
             $this->entityManager->remove($project);
             $this->entityManager->flush();
-            $this->entityManager->commit();
+
+            $this->entityManager->beginTransaction();
+
+            $this->notificationService->notifyProjectMembers(
+                sprintf(
+                    '%s deleted the project "%s"',
+                    $currentUser->getUsername(),
+                    $project->getName()
+                ),
+                'project_deleted',
+                '/projects',
+                $project,
+                ['projectName' => $project->getName()]
+            );
 
             return $this->json(['message' => 'Project deleted successfully'], JsonResponse::HTTP_OK);
         } catch (\Exception $e) {
@@ -437,88 +511,5 @@ class ProjectController extends AbstractController
                 JsonResponse::HTTP_INTERNAL_SERVER_ERROR
             );
         }
-    }
-
-    #[Route('/invitation/{id}', name: 'project_invite', methods: ['POST'])]
-    public function inviteToProject(
-        Request $request,
-        Project $project,
-    ): JsonResponse {
-        $data = json_decode($request->getContent(), true);
-        $email = $data['email'] ?? null;
-        $recipient = $this->userRepository->findOneBy(['email' => $email]);
-        $invitation = new Invitation();
-        $invitation->setSender($this->getUser());
-        $invitation->setProject($project);
-        $invitation->setStatus('pending');
-        $invitation->setToken(bin2hex(random_bytes(16)));
-
-        if ($recipient) {
-            $invitation->setRecipient($recipient);
-        } else {
-            $invitation->setEmail($email);
-        }
-
-        $this->entityManager->persist($invitation);
-        $this->entityManager->flush();
-
-        $mailerHost = $this->params->get("mailer_host");
-        $mailerPassword = $this->params->get("mailer_password");
-        $mailerUsername = $this->params->get("mailer_username");
-
-        $mail = new PHPMailer();
-        $mail->isSMTP();
-        $mail->Host = $mailerHost;
-        $mail->SMTPAuth = true;
-        $mail->Username = $mailerUsername;
-        $mail->Password = $mailerPassword;
-        $mail->SMTPSecure = 'tls';
-        $mail->Port = 587;
-        $to = $user->getEmail();
-        $mail->setFrom($mailerUsername, 'Invitation');
-        $mail->addAddress($to);
-        $mail->Subject = 'Project Invitation';
-        $mail->Body = sprintf(
-            'You have been invited to join the project "%s". <a href="%s">Click here</a> to accept the invitation.',
-            $project->getName(),
-            $this->generateUrl(
-                'accept_invitation',
-                ['token' => $invitation->getToken()],
-                UrlGeneratorInterface::ABSOLUTE_URL
-            )
-        );
-        $mail->isHTML(true);
-
-        if ($mail->send()) {
-            return new JsonResponse(
-                ['message' => 'Invitation sent.'],
-                JsonResponse::HTTP_OK
-            );
-        } else {
-            return new JsonResponse(
-                ['message' => 'Invitation could not be sent. Please try again later.'],
-                JsonResponse::HTTP_INTERNAL_SERVER_ERROR
-            );
-        }
-    }
-
-    #[Route('/invitation/accept/{token}', name: 'accept_invitation', methods: ['GET'])]
-    public function acceptInvitation(string $token, InvitationRepository $invitationRepo): JsonResponse
-    {
-        $invitation = $invitationRepo->findOneBy(['token' => $token]);
-
-        if (!$invitation) {
-            return $this->json(['error' => 'Invalid or expired invitation.'], JsonResponse::HTTP_NOT_FOUND);
-        }
-
-        $user = $invitation->getUser();
-        $project = $invitation->getProject();
-
-        $project->addMember($user);
-        $this->entityManager->persist($project);
-        $this->entityManager->remove($invitation);
-        $this->entityManager->flush();
-
-        return $this->json(['message' => 'Invitation accepted. You are now part of the project!'], JsonResponse::HTTP_OK);
     }
 }

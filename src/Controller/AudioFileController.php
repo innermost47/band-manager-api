@@ -19,6 +19,7 @@ use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\HttpFoundation\Response;
+use App\Service\NotificationService;
 
 #[Route('', name: 'audio_file_')]
 class AudioFileController extends AbstractController
@@ -30,6 +31,7 @@ class AudioFileController extends AbstractController
     private $audioFileTypeRepository;
     private $uploadDir;
     private $secretStreaming;
+    private $notificationService;
 
     public function __construct(
         EntityManagerInterface $entityManager,
@@ -37,7 +39,8 @@ class AudioFileController extends AbstractController
         SongRepository $songRepository,
         ValidatorInterface $validator,
         AudioFileTypeRepository $audioFileTypeRepository,
-        ParameterBagInterface $params
+        ParameterBagInterface $params,
+        NotificationService $notificationService
     ) {
         $this->entityManager = $entityManager;
         $this->audioFileRepository = $audioFileRepository;
@@ -46,6 +49,7 @@ class AudioFileController extends AbstractController
         $this->audioFileTypeRepository = $audioFileTypeRepository;
         $this->uploadDir = realpath($params->get('kernel.project_dir'))  . '/var/uploads/private/';
         $this->secretStreaming = $params->get("secret_streaming");
+        $this->notificationService = $notificationService;
     }
 
     private function verifyProjectAccess($project, $currentUser): bool
@@ -253,6 +257,25 @@ class AudioFileController extends AbstractController
             $uploadedFiles[] = $audioFile;
         }
         $this->entityManager->flush();
+        $this->notificationService->notifyProjectMembers(
+            sprintf(
+                '%s uploaded %d audio file(s) to "%s"',
+                $this->getUser()->getUsername(),
+                count($uploadedFiles),
+                $song->getTitle()
+            ),
+            'audio_files_uploaded',
+            sprintf(
+                '/songs/%d',
+                $song->getId()
+            ),
+            $song->getProject(),
+            [
+                'songName' => $song->getTitle(),
+                'fileCount' => count($uploadedFiles),
+                'fileType' => $audioFileType->getName()
+            ]
+        );
         return $this->json([
             'message' => 'Files uploaded successfully',
             'files' => $uploadedFiles
@@ -294,7 +317,25 @@ class AudioFileController extends AbstractController
         }
 
         $this->entityManager->flush();
-
+        $this->notificationService->notifyProjectMembers(
+            sprintf(
+                '%s updated the audio file "%s" in song "%s"',
+                $this->getUser()->getUsername(),
+                $audioFile->getFilename(),
+                $song->getTitle()
+            ),
+            'audio_file_updated',
+            sprintf(
+                '/songs/%d',
+                $song->getId()
+            ),
+            $song->getProject(),
+            [
+                'songName' => $song->getTitle(),
+                'fileName' => $audioFile->getFilename(),
+                'updatedFields' => array_keys($data)
+            ]
+        );
         return $this->json($audioFile, JsonResponse::HTTP_OK, [], ['groups' => 'audio_file']);
     }
 
@@ -322,7 +363,24 @@ class AudioFileController extends AbstractController
 
         $this->entityManager->remove($audioFile);
         $this->entityManager->flush();
-
+        $this->notificationService->notifyProjectMembers(
+            sprintf(
+                '%s deleted the audio file "%s" from song "%s"',
+                $this->getUser()->getUsername(),
+                $audioFile->getFilename(),
+                $song->getTitle()
+            ),
+            'audio_file_deleted',
+            sprintf(
+                '/songs/%d',
+                $song->getId()
+            ),
+            $song->getProject(),
+            [
+                'songName' => $song->getTitle(),
+                'fileName' => $audioFile->getFilename()
+            ]
+        );
         return $this->json(['message' => 'File deleted successfully'], JsonResponse::HTTP_OK);
     }
 }

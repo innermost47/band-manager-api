@@ -70,6 +70,12 @@ class Project
     #[Groups(['project', 'user', 'event:read'])]
     private ?bool $isPublic = null;
 
+    /**
+     * @var Collection<int, Notification>
+     */
+    #[ORM\OneToMany(targetEntity: Notification::class, mappedBy: 'project')]
+    private Collection $notifications;
+
     public function __construct()
     {
         $this->songs = new ArrayCollection();
@@ -77,6 +83,7 @@ class Project
         $this->members = new ArrayCollection();
         $this->invitations = new ArrayCollection();
         $this->administrativeTasks = new ArrayCollection();
+        $this->notifications = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -275,6 +282,36 @@ class Project
     public function setPublic(?bool $isPublic): static
     {
         $this->isPublic = $isPublic;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Notification>
+     */
+    public function getNotifications(): Collection
+    {
+        return $this->notifications;
+    }
+
+    public function addNotification(Notification $notification): static
+    {
+        if (!$this->notifications->contains($notification)) {
+            $this->notifications->add($notification);
+            $notification->setProject($this);
+        }
+
+        return $this;
+    }
+
+    public function removeNotification(Notification $notification): static
+    {
+        if ($this->notifications->removeElement($notification)) {
+            // set the owning side to null (unless already changed)
+            if ($notification->getProject() === $this) {
+                $notification->setProject(null);
+            }
+        }
 
         return $this;
     }

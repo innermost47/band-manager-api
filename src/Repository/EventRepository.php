@@ -64,40 +64,40 @@ class EventRepository extends ServiceEntityRepository
 
     public function findEventsForNext24Hours(\DateTimeImmutable $date): array
     {
-    $events = $this->findAll();
-    $occurrences = [];
-    $datePlus24Hours = $date->modify('+24 hours');
+        $events = $this->findAll();
+        $occurrences = [];
+        $datePlus24Hours = $date->modify('+24 hours');
 
-    foreach ($events as $event) {
-        $start = $event->getStartDate();
-        if (!$event->getRecurrenceType()) {
-            if ($start >= $date && $start <= $datePlus24Hours) {
-                $occurrences[] = $event;
-            }
-            continue;
-        }
-
-        $end = $event->getRecurrenceEnd() ?: $datePlus24Hours;
-        $interval = $event->getRecurrenceInterval() ?: 1;
-
-        while ($start <= $end) {
- 
-            if ($start >= $date && $start <= $datePlus24Hours) {
-                $occurrences[] = clone $event;
-            }
-          
-            if ($start > $datePlus24Hours) {
-                break;
+        foreach ($events as $event) {
+            $start = $event->getStartDate();
+            if (!$event->getRecurrenceType()) {
+                if ($start >= $date && $start <= $datePlus24Hours) {
+                    $occurrences[] = $event;
+                }
+                continue;
             }
 
-            $start = match ($event->getRecurrenceType()) {
-                'DAILY' => $start->modify("+{$interval} days"),
-                'WEEKLY' => $start->modify("+{$interval} weeks"),
-                'BI_WEEKLY' => $start->modify("+" . (2 * $interval) . " weeks"),
-                'MONTHLY' => $start->modify("+{$interval} months"),
-                'YEARLY' => $start->modify("+{$interval} years"),
-                default => null,
-            };
+            $end = $event->getRecurrenceEnd() ?: $datePlus24Hours;
+            $interval = $event->getRecurrenceInterval() ?: 1;
+
+            while ($start <= $end) {
+
+                if ($start >= $date && $start <= $datePlus24Hours) {
+                    $occurrences[] = clone $event;
+                }
+
+                if ($start > $datePlus24Hours) {
+                    break;
+                }
+
+                $start = match ($event->getRecurrenceType()) {
+                    'DAILY' => $start->modify("+{$interval} days"),
+                    'WEEKLY' => $start->modify("+{$interval} weeks"),
+                    'BI_WEEKLY' => $start->modify("+" . (2 * $interval) . " weeks"),
+                    'MONTHLY' => $start->modify("+{$interval} months"),
+                    'YEARLY' => $start->modify("+{$interval} years"),
+                    default => null,
+                };
                 if (!$start) {
                     break;
                 }

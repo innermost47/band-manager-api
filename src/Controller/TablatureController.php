@@ -11,6 +11,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use App\Service\NotificationService;
 
 #[Route('/api/tablatures', name: 'tablature_')]
 class TablatureController extends AbstractController
@@ -19,19 +20,22 @@ class TablatureController extends AbstractController
     private $tablatureRepository;
     private $songRepository;
     private $validator;
+    private $notificationService;
 
     public function __construct(
         EntityManagerInterface $entityManager,
         TablatureRepository $tablatureRepository,
         SongRepository $songRepository,
-        ValidatorInterface $validator
+        ValidatorInterface $validator,
+        NotificationService $notificationService
     ) {
         $this->entityManager = $entityManager;
         $this->tablatureRepository = $tablatureRepository;
         $this->songRepository = $songRepository;
         $this->validator = $validator;
+        $this->notificationService = $notificationService;
     }
-    
+
     private function verifyProjectAccess($song): void
     {
         $currentUser = $this->getUser();
@@ -108,6 +112,29 @@ class TablatureController extends AbstractController
         $this->entityManager->persist($tablature);
         $this->entityManager->flush();
 
+        $project = $song->getProject();
+        $this->notificationService->notifyProjectMembers(
+            sprintf(
+                '%s added a new tablature "%s" for %s to the song "%s"',
+                $this->getUser()->getUsername(),
+                $tablature->getTitle(),
+                $tablature->getInstrument(),
+                $song->getTitle()
+            ),
+            'tablature_created',
+            sprintf(
+                '/songs/%d',
+                $song->getId(),
+            ),
+            $project,
+            [
+                'tablatureTitle' => $tablature->getTitle(),
+                'instrument' => $tablature->getInstrument(),
+                'songTitle' => $song->getTitle(),
+                'projectName' => $project->getName()
+            ]
+        );
+
         return $this->json($tablature, JsonResponse::HTTP_CREATED, [], ['groups' => 'tablature']);
     }
 
@@ -144,6 +171,31 @@ class TablatureController extends AbstractController
 
         $this->entityManager->flush();
 
+        $song = $tablature->getSong();
+        $project = $song->getProject();
+        $updatedFields = array_intersect_key($data, array_flip(['title', 'content', 'instrument']));
+
+        $this->notificationService->notifyProjectMembers(
+            sprintf(
+                '%s updated the tablature "%s" in song "%s"',
+                $this->getUser()->getUsername(),
+                $tablature->getTitle(),
+                $song->getTitle()
+            ),
+            'tablature_updated',
+            sprintf(
+                '/songs/%d',
+                $song->getId(),
+            ),
+            $project,
+            [
+                'tablatureTitle' => $tablature->getTitle(),
+                'songTitle' => $song->getTitle(),
+                'projectName' => $project->getName(),
+                'updatedFields' => array_keys($updatedFields)
+            ]
+        );
+
         return $this->json($tablature, JsonResponse::HTTP_OK, [], ['groups' => 'tablature']);
     }
 
@@ -160,6 +212,29 @@ class TablatureController extends AbstractController
 
         $this->entityManager->remove($tablature);
         $this->entityManager->flush();
+
+        $song = $tablature->getSong();
+        $project = $song->getProject();
+        $this->notificationService->notifyProjectMembers(
+            sprintf(
+                '%s deleted the tablature "%s" from song "%s"',
+                $this->getUser()->getUsername(),
+                $tablature->getTitle(),
+                $song->getTitle()
+            ),
+            'tablature_deleted',
+            sprintf(
+                '/songs/%d',
+                $song->getId()
+            ),
+            $project,
+            [
+                'tablatureTitle' => $tablature->getTitle(),
+                'songTitle' => $song->getTitle(),
+                'projectName' => $project->getName(),
+                'instrument' => $tablature->getInstrument()
+            ]
+        );
 
         return $this->json(['message' => 'Tablature deleted successfully'], JsonResponse::HTTP_OK);
     }

@@ -13,6 +13,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 use App\Service\EmailService;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
+use App\Service\NotificationService;
 
 #[Route('/api/invitations')]
 class InvitationController extends AbstractController
@@ -21,17 +22,20 @@ class InvitationController extends AbstractController
     private $projectRepository;
     private $invitationRepository;
     private $emailService;
+    private $notificationService;
 
     public function __construct(
         EntityManagerInterface $entityManager,
         ProjectRepository $projectRepository,
         InvitationRepository $invitationRepository,
-        ParameterBagInterface $params
+        ParameterBagInterface $params,
+        NotificationService $notificationService
     ) {
         $this->entityManager = $entityManager;
         $this->projectRepository = $projectRepository;
         $this->invitationRepository = $invitationRepository;
         $this->emailService = new EmailService($params);
+        $this->notificationService = $notificationService;
     }
 
     #[Route('/send', name: 'send_invitation', methods: ['POST'])]
@@ -96,6 +100,21 @@ class InvitationController extends AbstractController
             $emailData['fromSubject']
         );
         if ($isEmailSent) {
+            $this->notificationService->createSingleNotification(
+                $recipient,
+                sprintf(
+                    '%s invited you to join the project "%s"',
+                    $currentUser->getUsername(),
+                    $project->getName()
+                ),
+                'project_invitation_received',
+                '/profile',
+                $project,
+                [
+                    'senderName' => $currentUser->getUsername(),
+                    'projectName' => $project->getName()
+                ]
+            );
             return new JsonResponse(
                 ['message' => 'Invitation sent successfully.'],
                 JsonResponse::HTTP_OK
@@ -183,6 +202,21 @@ class InvitationController extends AbstractController
             $emailData['fromSubject']
         );
         if ($isEmailSent) {
+            $this->notificationService->createSingleNotification(
+                $targetUser,
+                sprintf(
+                    '%s requested to join your project "%s"',
+                    $currentUser->getUsername(),
+                    $project->getName()
+                ),
+                'collaboration_request_received',
+                '/profile',
+                $project,
+                [
+                    'requesterName' => $currentUser->getUsername(),
+                    'projectName' => $project->getName()
+                ]
+            );
             return new JsonResponse(
                 ['message' => 'Collaboration request sent successfully.'],
                 JsonResponse::HTTP_OK
@@ -240,6 +274,34 @@ class InvitationController extends AbstractController
             $emailData['fromSubject']
         );
         if ($isEmailSent) {
+            $notificationRecipient = $invitation->getType() === 'request' ? $sender : $recipient;
+            $notificationSender = $invitation->getType() === 'request' ? $recipient : $sender;
+
+            $this->notificationService->createSingleNotification(
+                $notificationRecipient,
+                $invitation->getType() === 'request'
+                    ? sprintf(
+                        'Your request to join "%s" has been accepted by %s',
+                        $project->getName(),
+                        $notificationSender->getUsername()
+                    )
+                    : sprintf(
+                        'Your invitation to "%s" has been accepted by %s',
+                        $project->getName(),
+                        $notificationSender->getUsername()
+                    ),
+                $invitation->getType() === 'request' ? 'collaboration_request_accepted' : 'project_invitation_accepted',
+                sprintf(
+                    '/projects/%d',
+                    $project->getId()
+                ),
+                $project,
+                [
+                    'projectName' => $project->getName(),
+                    'senderName' => $notificationSender->getUsername(),
+                    'type' => $invitation->getType()
+                ]
+            );
             return new JsonResponse(
                 ['message' => $invitation->getType() === 'request' ? 'Request accepted.' : 'Invitation accepted.'],
                 JsonResponse::HTTP_OK
@@ -276,6 +338,27 @@ class InvitationController extends AbstractController
             $emailData['fromSubject']
         );
         if ($isEmailSent) {
+            $this->notificationService->createSingleNotification(
+                $sender,
+                $invitation->getType() === 'request'
+                    ? sprintf('Your request to join "%s" has been declined', $project->getName())
+                    : sprintf(
+                        'Your invitation to "%s" has been declined by %s',
+                        $project->getName(),
+                        $invitation->getRecipient()->getUsername()
+                    ),
+                $invitation->getType() === 'request' ? 'collaboration_request_declined' : 'project_invitation_declined',
+                sprintf(
+                    '/public-projects/%d',
+                    $project->getId()
+                ),
+                $project,
+                [
+                    'projectName' => $project->getName(),
+                    'recipientName' => $invitation->getRecipient()->getUsername(),
+                    'type' => $invitation->getType()
+                ]
+            );
             return new JsonResponse(
                 ['message' => $invitation->getType() === 'request' ? 'Request declined.' : 'Invitation declined.'],
                 JsonResponse::HTTP_OK
@@ -507,6 +590,24 @@ class InvitationController extends AbstractController
         );
 
         if ($isEmailSent) {
+            $this->notificationService->createSingleNotification(
+                $sender,
+                sprintf(
+                    '%s has joined your project "%s" using the invitation code',
+                    $currentUser->getUsername(),
+                    $project->getName()
+                ),
+                'project_invitation_code_used',
+                sprintf(
+                    '/projects/%d',
+                    $project->getId()
+                ),
+                $project,
+                [
+                    'newMemberName' => $currentUser->getUsername(),
+                    'projectName' => $project->getName()
+                ]
+            );
             return new JsonResponse(
                 ['message' => 'Successfully joined project.'],
                 JsonResponse::HTTP_OK

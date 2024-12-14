@@ -11,6 +11,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use App\Service\NotificationService;
 
 #[Route('/api/administrative-tasks', name: 'administrative_task_')]
 class AdministrativeTaskController extends AbstractController
@@ -19,17 +20,20 @@ class AdministrativeTaskController extends AbstractController
     private $repository;
     private $validator;
     private $projectRepository;
+    private $notificationService;
 
     public function __construct(
         EntityManagerInterface $entityManager,
         AdministrativeTaskRepository $repository,
         ValidatorInterface $validator,
-        ProjectRepository $projectRepository
+        ProjectRepository $projectRepository,
+        NotificationService $notificationService
     ) {
         $this->entityManager = $entityManager;
         $this->repository = $repository;
         $this->validator = $validator;
         $this->projectRepository = $projectRepository;
+        $this->notificationService = $notificationService;
     }
 
     private function verifyProjectAccess($project): void
@@ -152,6 +156,17 @@ class AdministrativeTaskController extends AbstractController
         $this->entityManager->persist($task);
         $this->entityManager->flush();
 
+        $this->notificationService->notifyProjectMembers(
+            sprintf('%s created a new administrative task "%s"', $this->getUser()->getUsername(), $task->getName()),
+            'administrative_task_created',
+            sprintf(
+                '/administrative-tasks/%d',
+                $task->getId()
+            ),
+            $project,
+            ['taskId' => $task->getId(), 'taskName' => $task->getName()]
+        );
+
         return $this->json($task, JsonResponse::HTTP_CREATED, [], ['groups' => 'administrative_task']);
     }
 
@@ -171,7 +186,7 @@ class AdministrativeTaskController extends AbstractController
         if (!$data) {
             return $this->json(['error' => 'Invalid JSON format'], JsonResponse::HTTP_BAD_REQUEST);
         }
-
+        $originalName = $task->getName();
         $task->setName(isset($data['name']) ? trim($data['name']) : $task->getName());
         $task->setDescription(isset($data['description']) ? trim($data['description']) : $task->getDescription());
         $task->setTableStructure(isset($data['tableStructure']) ? $data['tableStructure'] : $task->getTableStructure());
@@ -181,6 +196,22 @@ class AdministrativeTaskController extends AbstractController
         if (count($errors) > 0) {
             return $this->json(['error' => (string) $errors], JsonResponse::HTTP_BAD_REQUEST);
         }
+
+        $this->notificationService->notifyProjectMembers(
+            sprintf('%s updated the administrative task "%s"', $this->getUser()->getUsername(), $originalName),
+            'administrative_task_updated',
+            sprintf(
+                '/administrative-tasks/%d',
+                $task->getId()
+            ),
+            $task->getProject(),
+            [
+                'taskId' => $task->getId(),
+                'taskName' => $task->getName(),
+                'originalName' => $originalName,
+                'changedFields' => array_keys($data)
+            ]
+        );
 
         $this->entityManager->flush();
 
@@ -199,6 +230,15 @@ class AdministrativeTaskController extends AbstractController
         $this->verifyProjectAccess($task->getProject());
 
         $this->entityManager->remove($task);
+
+        $this->notificationService->notifyProjectMembers(
+            sprintf('%s deleted the administrative task "%s"', $this->getUser()->getUsername(), $task->getName()),
+            'administrative_task_deleted',
+            '/administrative-tasks',
+            $task->getProject(),
+            ['taskName' => $task->getName()]
+        );
+
         $this->entityManager->flush();
 
         return $this->json(['message' => 'Task deleted successfully'], JsonResponse::HTTP_OK);

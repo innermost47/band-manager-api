@@ -4,7 +4,6 @@ namespace App\Controller;
 
 use App\Entity\Song;
 use App\Entity\Lyrics;
-use App\Entity\AudioFileType;
 use App\Repository\SongRepository;
 use App\Repository\ProjectRepository;
 use App\Repository\AudioFileRepository;
@@ -18,6 +17,7 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
+use App\Service\NotificationService;
 
 #[Route('/api/songs', name: 'song_')]
 class SongController extends AbstractController
@@ -31,6 +31,7 @@ class SongController extends AbstractController
     private $lyricsRepository;
     private $audioFileTypeRepository;
     private $secretStreaming;
+    private $notificationService;
 
     public function __construct(
         EntityManagerInterface $entityManager,
@@ -42,6 +43,7 @@ class SongController extends AbstractController
         LyricsRepository $lyricsRepository,
         AudioFileTypeRepository $audioFileTypeRepository,
         ParameterBagInterface $params,
+        NotificationService $notificationService
     ) {
         $this->entityManager = $entityManager;
         $this->songRepository = $songRepository;
@@ -52,6 +54,7 @@ class SongController extends AbstractController
         $this->lyricsRepository = $lyricsRepository;
         $this->audioFileTypeRepository = $audioFileTypeRepository;
         $this->secretStreaming = $params->get("secret_streaming");
+        $this->notificationService = $notificationService;
     }
 
     private function verifyProjectAccess($project, $currentUser): bool
@@ -62,7 +65,7 @@ class SongController extends AbstractController
         return true;
     }
 
-    #[Route('/{id}', name: 'show', methods: ['GET'])]
+    #[Route('/{id<\d+>}', name: 'show', methods: ['GET'])]
     public function show(int $id): JsonResponse
     {
         $song = $this->songRepository->find($id);
@@ -157,10 +160,30 @@ class SongController extends AbstractController
         $this->entityManager->persist($song);
         $this->entityManager->flush();
 
+        $this->notificationService->notifyProjectMembers(
+            sprintf(
+                '%s added a new song "%s" to the project "%s"',
+                $currentUser->getUsername(),
+                $song->getTitle(),
+                $project->getName()
+            ),
+            'song_created',
+            sprintf(
+                '/songs/%d',
+                $song->getId()
+            ),
+            $project,
+            [
+                'songTitle' => $song->getTitle(),
+                'projectName' => $project->getName(),
+                'isPublic' => $song->isPublic()
+            ]
+        );
+
         return $this->json($song, JsonResponse::HTTP_CREATED, [], ['groups' => 'song']);
     }
 
-    #[Route('/{id}', name: 'update', methods: ['PUT'])]
+    #[Route('/{id<\d+>}', name: 'update', methods: ['PUT'])]
     public function update(Request $request, int $id): JsonResponse
     {
         $song = $this->songRepository->find($id);
@@ -226,10 +249,31 @@ class SongController extends AbstractController
 
         $this->entityManager->flush();
 
+        $updatedFields = array_intersect_key($data, array_flip(['title', 'is_public', 'bpm', 'scale', 'lyrics']));
+
+        $this->notificationService->notifyProjectMembers(
+            sprintf(
+                '%s updated the song "%s"',
+                $currentUser->getUsername(),
+                $song->getTitle()
+            ),
+            'song_updated',
+            sprintf(
+                '/songs/%d',
+                $song->getId()
+            ),
+            $song->getProject(),
+            [
+                'songTitle' => $song->getTitle(),
+                'projectName' => $song->getProject()->getName(),
+                'updatedFields' => array_keys($updatedFields)
+            ]
+        );
+
         return $this->json($song, JsonResponse::HTTP_OK, [], ['groups' => 'song']);
     }
 
-    #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
+    #[Route('/{id<\d+>}', name: 'delete', methods: ['DELETE'])]
     public function delete(int $id): JsonResponse
     {
         $song = $this->songRepository->find($id);
@@ -242,9 +286,38 @@ class SongController extends AbstractController
         if (!$this->verifyProjectAccess($song->getProject(), $currentUser)) {
             return $this->json(['error' => 'Unauthorized'], JsonResponse::HTTP_UNAUTHORIZED);
         }
+        $lyrics = $this->lyricsRepository->findBy(['song' => $song]);
+        foreach ($lyrics as $lyric) {
+            $this->entityManager->remove($lyric);
+        }
+
+        $tablatures = $this->tablatureRepository->findBy(['song' => $song]);
+        foreach ($tablatures as $tablature) {
+            $this->entityManager->remove($tablature);
+        }
 
         $this->entityManager->remove($song);
         $this->entityManager->flush();
+
+        $project = $song->getProject();
+        $this->notificationService->notifyProjectMembers(
+            sprintf(
+                '%s deleted the song "%s" from project "%s"',
+                $currentUser->getUsername(),
+                $song->getTitle(),
+                $project->getName()
+            ),
+            'song_deleted',
+            sprintf(
+                '/projects/%d',
+                $project->getId()
+            ),
+            $project,
+            [
+                'songTitle' => $song->getTitle(),
+                'projectName' => $project->getName()
+            ]
+        );
 
         return $this->json(['message' => 'Song deleted successfully'], JsonResponse::HTTP_OK);
     }

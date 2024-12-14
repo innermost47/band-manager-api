@@ -13,19 +13,23 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use App\Service\NotificationService;
 
 #[Route('/api/events')]
 class EventController extends AbstractController
 {
     private $projectRepository;
+    private $notificationService;
 
     public function __construct(
         private EntityManagerInterface $entityManager,
         private SerializerInterface $serializer,
         private ValidatorInterface $validator,
         ProjectRepository $projectRepository,
+        NotificationService $notificationService
     ) {
         $this->projectRepository = $projectRepository;
+        $this->notificationService = $notificationService;
     }
 
     #[Route('/project/{projectId}', name: 'api_events_by_project', methods: ['GET'])]
@@ -121,6 +125,25 @@ class EventController extends AbstractController
             $this->entityManager->persist($event);
             $this->entityManager->flush();
 
+            $this->notificationService->notifyProjectMembers(
+                sprintf(
+                    '%s created a new event "%s"',
+                    $this->getUser()->getUsername(),
+                    $event->getName()
+                ),
+                'event_created',
+                sprintf(
+                    '/projects/%d',
+                    $project->getId()
+                ),
+                $project,
+                [
+                    'eventTitle' => $event->getName(),
+                    'startDate' => $event->getStartDate()->format('Y-m-d H:i'),
+                    'isPublic' => $event->isPublic()
+                ]
+            );
+
             return $this->json($event, Response::HTTP_CREATED, [], [
                 'groups' => ['event:read']
             ]);
@@ -169,6 +192,25 @@ class EventController extends AbstractController
 
             $this->entityManager->flush();
 
+            $this->notificationService->notifyProjectMembers(
+                sprintf(
+                    '%s updated the event "%s"',
+                    $this->getUser()->getUsername(),
+                    $event->getName()
+                ),
+                'event_updated',
+                sprintf(
+                    '/projects/%d',
+                    $project->getId(),
+                ),
+                $project,
+                [
+                    'eventTitle' => $event->getName(),
+                    'startDate' => $event->getStartDate()->format('Y-m-d H:i'),
+                    'updatedFields' => array_keys($data)
+                ]
+            );
+
             return $this->json($event, Response::HTTP_OK, [], [
                 'groups' => ['event:read']
             ]);
@@ -191,6 +233,24 @@ class EventController extends AbstractController
 
         $this->entityManager->remove($event);
         $this->entityManager->flush();
+
+        $this->notificationService->notifyProjectMembers(
+            sprintf(
+                '%s deleted the event "%s"',
+                $this->getUser()->getUsername(),
+                $event->getName()
+            ),
+            'event_deleted',
+            sprintf(
+                '/projects/%d',
+                $project->getId()
+            ),
+            $project,
+            [
+                'eventTitle' => $event->getName(),
+                'startDate' => $event->getStartDate()->format('Y-m-d H:i')
+            ]
+        );
 
         return $this->json(null, Response::HTTP_NO_CONTENT);
     }
@@ -218,6 +278,26 @@ class EventController extends AbstractController
 
             $this->entityManager->persist($exception);
             $this->entityManager->flush();
+
+            $this->notificationService->notifyProjectMembers(
+                sprintf(
+                    '%s cancelled the occurrence of "%s" on %s',
+                    $this->getUser()->getUsername(),
+                    $event->getName(),
+                    $date->format('Y-m-d')
+                ),
+                'event_occurrence_cancelled',
+                sprintf(
+                    '/projects/%d',
+                    $project->getId(),
+                ),
+                $project,
+                [
+                    'eventTitle' => $event->getName(),
+                    'cancelledDate' => $date->format('Y-m-d'),
+                    'reason' => $reason
+                ]
+            );
 
             return $this->json($exception, Response::HTTP_CREATED, [], [
                 'groups' => ['event:read']

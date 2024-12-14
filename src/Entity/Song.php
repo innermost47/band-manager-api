@@ -7,7 +7,7 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
-use Symfony\Component\Serializer\Annotation\MaxDepth;
+use App\Entity\Lyrics;
 
 #[ORM\Entity(repositoryClass: SongRepository::class)]
 class Song
@@ -50,9 +50,13 @@ class Song
     #[Groups(['song'])]
     private ?bool $isPublic = null;
 
+    #[ORM\OneToMany(mappedBy: 'song', targetEntity: Lyrics::class, cascade: ['persist', 'remove'])]
+    private Collection $lyrics;
+
     public function __construct()
     {
         $this->audioFiles = new ArrayCollection();
+        $this->lyrics = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -167,6 +171,30 @@ class Song
     {
         $this->isPublic = $isPublic;
 
+        return $this;
+    }
+
+    public function getLyrics(): Collection
+    {
+        return $this->lyrics;
+    }
+
+    public function addLyrics(Lyrics $lyrics): static
+    {
+        if (!$this->lyrics->contains($lyrics)) {
+            $this->lyrics->add($lyrics);
+            $lyrics->setSong($this);
+        }
+        return $this;
+    }
+
+    public function removeLyrics(Lyrics $lyrics): static
+    {
+        if ($this->lyrics->removeElement($lyrics)) {
+            if ($lyrics->getSong() === $this) {
+                $lyrics->setSong(null);
+            }
+        }
         return $this;
     }
 }
