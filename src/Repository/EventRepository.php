@@ -62,32 +62,42 @@ class EventRepository extends ServiceEntityRepository
             ->getResult();
     }
 
-    public function findAllEventsUpTo(\DateTimeImmutable $date): array
+    public function findEventsForNext24Hours(\DateTimeImmutable $date): array
     {
-        $events = $this->findAll();
-        $occurrences = [];
+    $events = $this->findAll();
+    $occurrences = [];
+    $datePlus24Hours = $date->modify('+24 hours');
 
-        foreach ($events as $event) {
-            $start = $event->getStartDate();
-            if (!$event->getRecurrenceType()) {
-                if ($start <= $date) {
-                    $occurrences[] = $event;
-                }
-                continue;
+    foreach ($events as $event) {
+        $start = $event->getStartDate();
+        if (!$event->getRecurrenceType()) {
+            if ($start >= $date && $start <= $datePlus24Hours) {
+                $occurrences[] = $event;
             }
-            $end = $event->getRecurrenceEnd() ?: $date;
-            $interval = $event->getRecurrenceInterval() ?: 1;
+            continue;
+        }
 
-            while ($start <= $end && $start <= $date) {
+        $end = $event->getRecurrenceEnd() ?: $datePlus24Hours;
+        $interval = $event->getRecurrenceInterval() ?: 1;
+
+        while ($start <= $end) {
+ 
+            if ($start >= $date && $start <= $datePlus24Hours) {
                 $occurrences[] = clone $event;
-                $start = match ($event->getRecurrenceType()) {
-                    'DAILY' => $start->modify("+{$interval} days"),
-                    'WEEKLY' => $start->modify("+{$interval} weeks"),
-                    'BI_WEEKLY' => $start->modify("+" . (2 * $interval) . " weeks"),
-                    'MONTHLY' => $start->modify("+{$interval} months"),
-                    'YEARLY' => $start->modify("+{$interval} years"),
-                    default => null,
-                };
+            }
+          
+            if ($start > $datePlus24Hours) {
+                break;
+            }
+
+            $start = match ($event->getRecurrenceType()) {
+                'DAILY' => $start->modify("+{$interval} days"),
+                'WEEKLY' => $start->modify("+{$interval} weeks"),
+                'BI_WEEKLY' => $start->modify("+" . (2 * $interval) . " weeks"),
+                'MONTHLY' => $start->modify("+{$interval} months"),
+                'YEARLY' => $start->modify("+{$interval} years"),
+                default => null,
+            };
                 if (!$start) {
                     break;
                 }
