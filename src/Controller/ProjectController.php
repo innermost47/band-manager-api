@@ -17,6 +17,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use App\Service\NotificationService;
+use getID3;
 
 #[Route('/api/projects', name: 'project_')]
 class ProjectController extends AbstractController
@@ -30,6 +31,7 @@ class ProjectController extends AbstractController
     private $invitationRepository;
     private $secretStreaming;
     private $notificationService;
+    private $uploadDir;
 
     public function __construct(
         EntityManagerInterface $entityManager,
@@ -51,6 +53,7 @@ class ProjectController extends AbstractController
         $this->audioFileRepository = $audioFileRepository;
         $this->invitationRepository = $invitationRepository;
         $this->notificationService = $notificationService;
+        $this->uploadDir = realpath($params->get('kernel.project_dir'))  . '/var/uploads/private/';
     }
 
     #[Route('', name: 'list', methods: ['GET'])]
@@ -281,6 +284,109 @@ class ProjectController extends AbstractController
             ],
             JsonResponse::HTTP_OK
         );
+    }
+
+    private function getAudioDuration($filePath): ?float
+    {
+        try {
+            if (!file_exists($filePath)) {
+                return null;
+            }
+            if (class_exists('getID3')) {
+                $getID3 = new \getID3();
+                $fileInfo = $getID3->analyze($filePath);
+                if (isset($fileInfo['playtime_seconds'])) {
+                    return round($fileInfo['playtime_seconds'], 2);
+                }
+            }
+            $command = sprintf('ffprobe -i %s -show_entries format=duration -v quiet -of csv="p=0"', escapeshellarg($filePath));
+            $duration = exec($command);
+            if (is_numeric($duration)) {
+                return round(floatval($duration), 2);
+            }
+            return null;
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    #[Route('/public/songs', name: 'list_public_songs', methods: ['GET'])]
+    public function getPublicSongs(): JsonResponse
+    {
+        $publicProjects = $this->repository->findBy([
+            'isPublic' => true
+        ]);
+
+        $projectsData = [];
+
+        foreach ($publicProjects as $project) {
+            $songsData = [];
+            $songs = $this->songRepository->findBy(['project' => $project]);
+
+            foreach ($songs as $song) {
+                if (!$song->isPublic()) {
+                    continue;
+                }
+
+                $audioFiles = $this->audioFileRepository->findBy(['song' => $song]);
+                $masterFiles = array_filter($audioFiles, function ($file) {
+                    return $file->getAudioFileType() && $file->getAudioFileType()->getName() === 'Master';
+                });
+
+                $latestMasterFile = null;
+                if (!empty($masterFiles)) {
+                    usort($masterFiles, function ($a, $b) {
+                        return $b->getCreatedAt() <=> $a->getCreatedAt();
+                    });
+                    $latestMasterFile = $masterFiles[0];
+                }
+
+                if ($latestMasterFile) {
+                    $expiresAt = time() + 3600;
+                    $signature = hash_hmac('sha256', $latestMasterFile->getId() . $expiresAt, $this->secretStreaming);
+                    $signedUrl = 'stream/' . $latestMasterFile->getId() . '?expires=' . $expiresAt . '&signature=' . $signature;
+
+                    $songsData[] = [
+                        'id' => $song->getId(),
+                        'title' => $song->getTitle(),
+                        'bpm' => $song->getBpm(),
+                        'scale' => $song->getScale(),
+                        'audioFile' => [
+                            'id' => $latestMasterFile->getId(),
+                            'filename' => $latestMasterFile->getFilename(),
+                            'description' => $latestMasterFile->getDescription(),
+                            'audioFileType' => [
+                                'name' => $latestMasterFile->getAudioFileType()->getName(),
+                            ],
+                            'signed_url' => $signedUrl,
+                            'duration' => $this->getAudioDuration($this->uploadDir . '/' . $latestMasterFile->getPath()),
+                        ]
+                    ];
+                }
+            }
+
+            if (!empty($songsData)) {
+                $projectsData[] = [
+                    'id' => $project->getId(),
+                    'name' => $project->getName(),
+                    'description' => $project->getDescription(),
+                    'profileImage' => $project->getProfileImage(),
+                    'songs' => $songsData,
+                    'members' => $project->getMembers()
+                        ->filter(function ($member) {
+                            return $member->isPublic();
+                        })
+                        ->map(function ($member) {
+                            return [
+                                'id' => $member->getId(),
+                                'username' => $member->getUsername(),
+                            ];
+                        })->toArray(),
+                ];
+            }
+        }
+
+        return $this->json($projectsData, JsonResponse::HTTP_OK);
     }
 
 

@@ -228,8 +228,8 @@ class AudioFileController extends AbstractController
             if (!$file->isValid()) {
                 return $this->json(['error' => 'One or more files are invalid'], JsonResponse::HTTP_BAD_REQUEST);
             }
-            if (!in_array($file->getMimeType(), ['audio/mpeg', 'audio/wav', 'audio/ogg'])) {
-                return $this->json(['error' => 'Invalid file type. Allowed types: mp3, wav, ogg'], JsonResponse::HTTP_BAD_REQUEST);
+            if (!in_array($file->getMimeType(), ['audio/mpeg'])) {
+                return $this->json(['error' => 'Invalid file type. Allowed type: mp3'], JsonResponse::HTTP_BAD_REQUEST);
             }
             $originalFilename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
             $safeFilename = preg_replace('/[^a-zA-Z0-9-_]/', '_', $originalFilename);
