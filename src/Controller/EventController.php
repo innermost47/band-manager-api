@@ -76,7 +76,7 @@ class EventController extends AbstractController
         ]);
     }
 
-    #[Route('/public', name: 'api_public_events', methods: ['GET'])]
+    #[Route('/publics', name: 'api_public_events', methods: ['GET'])]
     public function getAllPublicEvents(): JsonResponse
     {
 

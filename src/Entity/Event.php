@@ -65,6 +65,7 @@ class Event
     private Collection $exceptions;
 
     #[ORM\ManyToOne(targetEntity: Project::class, inversedBy: 'events')]
+    #[Groups(['event:read'])]
     private ?Project $project = null;
 
     #[ORM\Column(nullable: true)]

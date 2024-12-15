@@ -45,10 +45,15 @@ class EventRepository extends ServiceEntityRepository
             ->join('e.project', 'p')
             ->andWhere('e.isPublic = true')
             ->andWhere('p.isPublic = true')
+            ->andWhere('e.start_date >= :now')
+            ->andWhere('(e.recurrence_type IS NULL OR e.recurrence_type = :empty)')
+            ->setParameter('now', new \DateTimeImmutable('now'))
+            ->setParameter('empty', '')
             ->orderBy('e.start_date', 'ASC')
             ->getQuery()
             ->getResult();
     }
+
 
     public function findEventsInPeriod(\DateTimeImmutable $startDate, \DateTimeImmutable $endDate): array
     {
