@@ -182,8 +182,8 @@ class UserController extends AbstractController
                 return $this->json(['error' => 'User not found'], JsonResponse::HTTP_NOT_FOUND);
             }
             $userData = $this->serializer->normalize($user, null, ['groups' => ['user']]);
-            $sentInvitations = $user->getInvitations();
-            $receivedInvitations = $this->invitationRepository->findBy(['recipient' => $user]);
+            $sentInvitations = $user->getSentInvitations();
+            $receivedInvitations = $user->getReceivedInvitations();
             $userData['sent_invitations'] = $this->serializer->normalize($sentInvitations, null, ['groups' => ['user']]);
             $userData['received_invitations'] = $this->serializer->normalize($receivedInvitations, null, ['groups' => ['user']]);
             return $this->json($userData);
