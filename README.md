@@ -43,7 +43,7 @@ php bin/console doctrine:migrations:migrate
 php bin/console doctrine:fixtures:load
 
 # Create upload dirs
-mkdir -p var/uploads/private/{audio,project_images}
+mkdir -p var/uploads/private/{audio,project_images,documents}
 
 # Start server
 symfony server:start

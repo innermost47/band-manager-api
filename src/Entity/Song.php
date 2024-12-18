@@ -53,10 +53,14 @@ class Song
     #[ORM\OneToMany(mappedBy: 'song', targetEntity: Lyrics::class, cascade: ['persist', 'remove'])]
     private Collection $lyrics;
 
+    #[ORM\OneToMany(mappedBy: 'song', targetEntity: Tablature::class, cascade: ['persist', 'remove'])]
+    private Collection $tablatures;
+
     public function __construct()
     {
         $this->audioFiles = new ArrayCollection();
         $this->lyrics = new ArrayCollection();
+        $this->tablatures = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -195,6 +199,36 @@ class Song
                 $lyrics->setSong(null);
             }
         }
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Tablature>
+     */
+    public function getTablatures(): Collection
+    {
+        return $this->tablatures;
+    }
+
+    public function addTablature(Tablature $tablature): static
+    {
+        if (!$this->tablatures->contains($tablature)) {
+            $this->tablatures->add($tablature);
+            $tablature->setSong($this);
+        }
+
+        return $this;
+    }
+
+    public function removeTablature(Tablature $tablature): static
+    {
+        if ($this->tablatures->removeElement($tablature)) {
+            // Set the owning side to null (unless already changed)
+            if ($tablature->getSong() === $this) {
+                $tablature->setSong(null);
+            }
+        }
+
         return $this;
     }
 }

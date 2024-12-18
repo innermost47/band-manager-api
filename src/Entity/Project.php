@@ -76,6 +76,15 @@ class Project
     #[ORM\OneToMany(targetEntity: Notification::class, mappedBy: 'project')]
     private Collection $notifications;
 
+    /**
+     * @var Collection<int, Document>
+     */
+    #[ORM\OneToMany(targetEntity: Document::class, mappedBy: 'project')]
+    private Collection $documents;
+
+    #[ORM\OneToMany(mappedBy: 'project', targetEntity: Event::class)]
+    private Collection $events;
+
     public function __construct()
     {
         $this->songs = new ArrayCollection();
@@ -84,6 +93,8 @@ class Project
         $this->invitations = new ArrayCollection();
         $this->administrativeTasks = new ArrayCollection();
         $this->notifications = new ArrayCollection();
+        $this->documents = new ArrayCollection();
+        $this->events = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -310,6 +321,63 @@ class Project
             // set the owning side to null (unless already changed)
             if ($notification->getProject() === $this) {
                 $notification->setProject(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Document>
+     */
+    public function getDocuments(): Collection
+    {
+        return $this->documents;
+    }
+
+    public function addDocument(Document $document): static
+    {
+        if (!$this->documents->contains($document)) {
+            $this->documents->add($document);
+            $document->setProject($this);
+        }
+
+        return $this;
+    }
+
+    public function removeDocument(Document $document): static
+    {
+        if ($this->documents->removeElement($document)) {
+            // set the owning side to null (unless already changed)
+            if ($document->getProject() === $this) {
+                $document->setProject(null);
+            }
+        }
+
+        return $this;
+    }
+
+    public function getEvents(): Collection
+    {
+        return $this->events;
+    }
+
+    public function addEvents(Event $event): static
+    {
+        if (!$this->events->contains($event)) {
+            $this->events->add($event);
+            $event->setProject($this);
+        }
+
+        return $this;
+    }
+
+    public function removeEvent(Event $event): static
+    {
+        if ($this->events->removeElement($event)) {
+            // set the owning side to null (unless already changed)
+            if ($event->getProject() === $this) {
+                $event->setProject(null);
             }
         }
 

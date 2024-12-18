@@ -36,12 +36,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[Groups(['user'])]
     private array $roles = [];
 
-    /**
-     * @var Collection<int, Event>
-     */
-    #[ORM\ManyToMany(targetEntity: Event::class, mappedBy: 'participants')]
-    private Collection $events;
-
     #[ORM\Column(length: 255, nullable: true)]
     #[Groups(['user'])]
     private ?string $sacemNumber = null;
@@ -77,19 +71,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      */
     #[ORM\ManyToMany(targetEntity: Project::class, inversedBy: 'members')]
     #[Groups(['user'])]
-    #[MaxDepth(1)] 
+    #[MaxDepth(1)]
     private Collection $projects;
 
     #[ORM\Column(nullable: true)]
     #[Groups(['user', 'project'])]
     private ?bool $isPublic = null;
 
-    /**
-     * @var Collection<int, Invitation>
-     */
-    #[ORM\OneToMany(targetEntity: Invitation::class, mappedBy: 'sender')]
-    #[Groups(['user'])]
-    private Collection $invitations;
+    #[ORM\OneToMany(mappedBy: 'sender', targetEntity: Invitation::class)]
+    private Collection $sentInvitations;
+
+    #[ORM\OneToMany(mappedBy: 'recipient', targetEntity: Invitation::class)]
+    private Collection $receivedInvitations;
 
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $verificationCode = null;
@@ -137,11 +130,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function __construct()
     {
-        $this->events = new ArrayCollection();
         $this->administrativeTasks = new ArrayCollection();
         $this->tasks = new ArrayCollection();
         $this->projects = new ArrayCollection();
-        $this->invitations = new ArrayCollection();
+        $this->sentInvitations = new ArrayCollection();
+        $this->receivedInvitations = new ArrayCollection();
         $this->notifications = new ArrayCollection();
     }
 
@@ -201,33 +194,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setRoles(array $roles): static
     {
         $this->roles = $roles;
-
-        return $this;
-    }
-
-    /**
-     * @return Collection<int, Event>
-     */
-    public function getEvents(): Collection
-    {
-        return $this->events;
-    }
-
-    public function addEvent(Event $event): static
-    {
-        if (!$this->events->contains($event)) {
-            $this->events->add($event);
-            $event->addParticipant($this);
-        }
-
-        return $this;
-    }
-
-    public function removeEvent(Event $event): static
-    {
-        if ($this->events->removeElement($event)) {
-            $event->removeParticipant($this);
-        }
 
         return $this;
     }
@@ -392,25 +358,25 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     /**
      * @return Collection<int, Invitation>
      */
-    public function getInvitations(): Collection
+    public function getSentInvitations(): Collection
     {
-        return $this->invitations;
+        return $this->sentInvitations;
     }
 
-    public function addInvitation(Invitation $invitation): static
+    public function addSentInvitation(Invitation $invitation): static
     {
-        if (!$this->invitations->contains($invitation)) {
-            $this->invitations->add($invitation);
+        if (!$this->sentInvitations->contains($invitation)) {
+            $this->sentInvitations->add($invitation);
             $invitation->setSender($this);
         }
 
         return $this;
     }
 
-    public function removeInvitation(Invitation $invitation): static
+    public function removeSentInvitation(Invitation $invitation): static
     {
-        if ($this->invitations->removeElement($invitation)) {
-            // set the owning side to null (unless already changed)
+        if ($this->sentInvitations->removeElement($invitation)) {
+            // Set the owning side to null (unless already changed)
             if ($invitation->getSender() === $this) {
                 $invitation->setSender(null);
             }
@@ -418,6 +384,37 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
         return $this;
     }
+
+    /**
+     * @return Collection<int, Invitation>
+     */
+    public function getReceivedInvitations(): Collection
+    {
+        return $this->receivedInvitations;
+    }
+
+    public function addReceivedInvitation(Invitation $invitation): static
+    {
+        if (!$this->receivedInvitations->contains($invitation)) {
+            $this->receivedInvitations->add($invitation);
+            $invitation->setRecipient($this);
+        }
+
+        return $this;
+    }
+
+    public function removeReceivedInvitation(Invitation $invitation): static
+    {
+        if ($this->receivedInvitations->removeElement($invitation)) {
+            // Set the owning side to null (unless already changed)
+            if ($invitation->getRecipient() === $this) {
+                $invitation->setRecipient(null);
+            }
+        }
+
+        return $this;
+    }
+
 
     public function getVerificationCode(): ?string
     {

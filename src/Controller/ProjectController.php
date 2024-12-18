@@ -17,7 +17,6 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use App\Service\NotificationService;
-use getID3;
 
 #[Route('/api/projects', name: 'project_')]
 class ProjectController extends AbstractController

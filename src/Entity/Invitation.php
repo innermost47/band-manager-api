@@ -15,10 +15,10 @@ class Invitation
     #[Groups(['user'])]
     private ?int $id = null;
 
-    #[ORM\ManyToOne(inversedBy: 'invitations')]
+    #[ORM\ManyToOne(inversedBy: 'sentInvitations')]
     private ?User $sender = null;
 
-    #[ORM\ManyToOne(inversedBy: 'invitations')]
+    #[ORM\ManyToOne(inversedBy: 'receivedInvitations')]
     private ?User $recipient = null;
 
     #[ORM\Column(length: 255, nullable: true)]
