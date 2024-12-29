@@ -85,6 +85,12 @@ class Project
     #[ORM\OneToMany(mappedBy: 'project', targetEntity: Event::class)]
     private Collection $events;
 
+    /**
+     * @var Collection<int, Channel>
+     */
+    #[ORM\OneToMany(targetEntity: Channel::class, mappedBy: 'project')]
+    private Collection $channels;
+
     public function __construct()
     {
         $this->songs = new ArrayCollection();
@@ -95,6 +101,7 @@ class Project
         $this->notifications = new ArrayCollection();
         $this->documents = new ArrayCollection();
         $this->events = new ArrayCollection();
+        $this->channels = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -378,6 +385,36 @@ class Project
             // set the owning side to null (unless already changed)
             if ($event->getProject() === $this) {
                 $event->setProject(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Channel>
+     */
+    public function getChannels(): Collection
+    {
+        return $this->channels;
+    }
+
+    public function addChannel(Channel $channel): static
+    {
+        if (!$this->channels->contains($channel)) {
+            $this->channels->add($channel);
+            $channel->setProject($this);
+        }
+
+        return $this;
+    }
+
+    public function removeChannel(Channel $channel): static
+    {
+        if ($this->channels->removeElement($channel)) {
+            // set the owning side to null (unless already changed)
+            if ($channel->getProject() === $this) {
+                $channel->setProject(null);
             }
         }
 

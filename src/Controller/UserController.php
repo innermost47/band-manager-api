@@ -537,4 +537,30 @@ class UserController extends AbstractController
 
         return $this->json(['message' => 'Password changed successfully']);
     }
+
+    #[Route('/api/users/myprojects', name: 'get_user_projects', methods: ['GET'])]
+    public function getMyProjects(): JsonResponse
+    {
+        try {
+            $user = $this->getUser();
+            if (!$user) {
+                return $this->json(['error' => 'User not found'], JsonResponse::HTTP_NOT_FOUND);
+            }
+            $userProjects = $user->getProjects()->toArray();
+            $normalizedProjects = $this->serializer->normalize(
+                $userProjects,
+                null,
+                ['groups' => ['project']]
+            );
+            return $this->json($normalizedProjects);
+        } catch (\Exception $e) {
+            return $this->json(
+                [
+                    'error' => 'An error has occurred',
+                    'details' => $e->getMessage()
+                ],
+                JsonResponse::HTTP_INTERNAL_SERVER_ERROR
+            );
+        }
+    }
 }
