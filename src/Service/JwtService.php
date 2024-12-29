@@ -36,16 +36,22 @@ class JwtService
         $issuedBy = $this->params->get('issued_by');
         $permittedFor = $this->params->get('permitted_for');
 
-        $token = $this->jwtConfig->builder()
-            ->issuedBy($issuedBy)
-            ->permittedFor($permittedFor)
-            ->issuedAt($now)
-            ->canOnlyBeUsedAfter($now)
-            ->expiresAt($now->modify('+48 hours'))
-            ->withClaim('email', $email)
-            ->getToken($this->jwtConfig->signer(), $this->jwtConfig->signingKey());
+        try {
+            $token = $this->jwtConfig->builder()
+                ->issuedBy($issuedBy)
+                ->permittedFor($permittedFor)
+                ->identifiedBy(bin2hex(random_bytes(16)))
+                ->issuedAt($now)
+                ->canOnlyBeUsedAfter($now)
+                ->expiresAt($now->modify('+4 hours'))
+                ->withClaim('email', $email)
+                ->getToken($this->jwtConfig->signer(), $this->jwtConfig->signingKey());
 
-        return $token->toString();
+            return $token->toString();
+        } catch (\Exception $e) {
+            error_log('Token creation failed: ' . $e->getMessage());
+            throw new \RuntimeException('Failed to create token');
+        }
     }
 
     public function getJwtConfig(): Configuration

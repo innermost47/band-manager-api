@@ -14,6 +14,7 @@ use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Lcobucci\Clock\SystemClock;
 use App\Service\JwtService;
 use App\Repository\UserRepository;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 
 class JwtAuthenticator extends AbstractAuthenticator
@@ -77,10 +78,31 @@ class JwtAuthenticator extends AbstractAuthenticator
         return null;
     }
 
-    public function onAuthenticationFailure(Request $request, AuthenticationException $exception): \Symfony\Component\HttpFoundation\Response
+    public function onAuthenticationFailure(Request $request, AuthenticationException $exception): Response
     {
-        return new \Symfony\Component\HttpFoundation\JsonResponse([
-            'error' => 'Authentication failed: ' . $exception->getMessage(),
-        ], \Symfony\Component\HttpFoundation\Response::HTTP_UNAUTHORIZED);
+        try {
+            if (str_contains($exception->getMessage(), 'Token is expired')) {
+                $oldToken = str_replace('Bearer ', '', $request->headers->get('Authorization'));
+                try {
+                    $token = $this->jwtConfig->parser()->parse($oldToken);
+                    $email = $token->claims()->get('email');
+                    $newToken = $this->jwtService->createToken($email);
+                    return new JsonResponse([
+                        'tokenExpired' => true,
+                        'token' => $newToken
+                    ], Response::HTTP_UNAUTHORIZED);
+                } catch (\Exception $e) {
+                    error_log('Token renewal failed: ' . $e->getMessage());
+                }
+            }
+            return new JsonResponse([
+                'error' => 'Authentication failed: ' . $exception->getMessage()
+            ], Response::HTTP_UNAUTHORIZED);
+        } catch (\Exception $e) {
+            error_log('Authentication error: ' . $e->getMessage());
+            return new JsonResponse([
+                'error' => 'Authentication error'
+            ], Response::HTTP_UNAUTHORIZED);
+        }
     }
 }
