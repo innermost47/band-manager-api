@@ -22,13 +22,14 @@ class NotificationService
         EntityManagerInterface $entityManager,
         Security $security,
         #[Autowire('%env(VAPID_PUBLIC_KEY)%')] string $vapidPublicKey,
-        #[Autowire('%env(VAPID_PRIVATE_KEY)%')] string $vapidPrivateKey
+        #[Autowire('%env(VAPID_PRIVATE_KEY)%')] string $vapidPrivateKey,
+        #[Autowire('%env(MAILER_USERNAME)%')] string $mailerUsername
     ) {
         $this->entityManager = $entityManager;
         $this->security = $security;
         $auth = [
             'VAPID' => [
-                'subject' => 'mailto:you@domain.com',
+                'subject' => 'mailto:' . $mailerUsername,
                 'publicKey' => $vapidPublicKey,
                 'privateKey' => $vapidPrivateKey,
             ],
