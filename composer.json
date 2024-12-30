@@ -14,6 +14,7 @@
     "james-heinrich/getid3": "^1.9",
     "lcobucci/clock": "^3.3",
     "lcobucci/jwt": "^5.4",
+    "minishlink/web-push": "^9.0",
     "nelmio/cors-bundle": "^2.5",
     "phpdocumentor/reflection-docblock": "^5.6",
     "phpmailer/phpmailer": "^6.9",
@@ -29,7 +30,6 @@
     "symfony/http-client": "7.2.*",
     "symfony/intl": "7.2.*",
     "symfony/mailer": "7.2.*",
-    "symfony/mercure-bundle": "^0.3.9",
     "symfony/mime": "7.2.*",
     "symfony/monolog-bundle": "^3.0",
     "symfony/notifier": "7.2.*",
@@ -48,7 +48,8 @@
     "symfony/yaml": "7.2.*",
     "tecnickcom/tcpdf": "6.8.0",
     "textalk/websocket": "1.0",
-    "twig/twig": "^2.12|^3.0"
+    "twig/twig": "^2.12|^3.0",
+    "web-token/jwt-library": "^4.0"
   },
   "config": {
     "allow-plugins": {

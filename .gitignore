@@ -30,3 +30,4 @@ public/uploads/project_images/*
 config/jwt/*
 !config/jwt/.gitkeep
 
+*.pem

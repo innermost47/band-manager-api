@@ -25,3 +25,10 @@ services:
   App\Controller\:
     resource: "../src/Controller"
     tags: ["controller.service_arguments"]
+
+  App\Service\NotificationService:
+    arguments:
+      $entityManager: "@doctrine.orm.entity_manager"
+      $security: "@security.helper"
+      $vapidPublicKey: "%env(VAPID_PUBLIC_KEY)%"
+      $vapidPrivateKey: "%env(VAPID_PRIVATE_KEY)%"
