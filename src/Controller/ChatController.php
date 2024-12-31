@@ -100,7 +100,8 @@ class ChatController extends AbstractController
                 'projectName' => $project->getName(),
                 'channelName' => $channel->getName(),
                 'createdBy' => $this->getUser()->getUsername()
-            ]
+            ],
+            $this->getUser()
         );
 
         return $this->json($channel, 201);
@@ -157,7 +158,8 @@ class ChatController extends AbstractController
                 'projectName' => $project->getName(),
                 'channelName' => $channel->getName(),
                 'sentBy' => $this->getUser()->getUsername()
-            ]
+            ],
+            $this->getUser()
         );
         return $this->json($message, 201, [], ['groups' => ['message:read']]);
     }

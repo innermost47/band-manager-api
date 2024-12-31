@@ -78,7 +78,7 @@ class NotificationService
         $excludeUser = $excludeUser ?? $this->security->getUser();
 
         foreach ($project->getMembers() as $member) {
-            if ($excludeUser && $member->getId() === $excludeUser->getId()) {
+            if ($excludeUser !== null && $member->getId() === $excludeUser->getId()) {
                 continue;
             }
 
