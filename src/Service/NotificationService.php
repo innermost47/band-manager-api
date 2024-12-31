@@ -38,8 +38,11 @@ class NotificationService
         $this->webPush = new WebPush($auth);
     }
 
-    private function pushNotification(User $user, Notification $notification): void
+    private function pushNotification(User $user, Notification $notification, ?User $excludeUser = null): void
     {
+        if ($excludeUser !== null && $user->getId() === $excludeUser->getId()) {
+            return;
+        }
         $subscriptions = $this->entityManager->getRepository(PushSubscription::class)
             ->findBy(['user' => $user]);
 
@@ -92,7 +95,7 @@ class NotificationService
             $notification->setHasSeen(false);
             $notification->setCreatedAt(new \DateTimeImmutable());
             $this->entityManager->persist($notification);
-            $this->pushNotification($member, $notification);
+            $this->pushNotification($member, $notification, $excludeUser);
         }
 
         $this->entityManager->flush();
