@@ -36,9 +36,9 @@ class MessageRepository extends ServiceEntityRepository
     {
         return $this->createQueryBuilder('m')
             ->where('m.channel = :channel')
-            ->andWhere('m.createdAt > :after')
+            ->andWhere('m.createdAt >= :after')
             ->setParameter('channel', $channel)
-            ->setParameter('after', $after, \Doctrine\DBAL\Types\Types::DATETIME_IMMUTABLE)
+            ->setParameter('after', $after->modify('+1 microsecond'))
             ->orderBy('m.createdAt', 'ASC')
             ->getQuery()
             ->getResult();
