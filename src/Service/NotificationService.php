@@ -91,8 +91,8 @@ class NotificationService
             $notification->setMetadata($metadata);
             $notification->setHasSeen(false);
             $notification->setCreatedAt(new \DateTimeImmutable());
-
             $this->entityManager->persist($notification);
+            $this->pushNotification($member, $notification);
         }
 
         $this->entityManager->flush();
