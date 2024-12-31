@@ -452,7 +452,6 @@ class InvitationController extends AbstractController
 
         $lastInvitation = $this->invitationRepository->findOneBy(
             ['email' => $email, 'project' => $project],
-            ['createdAt' => 'DESC']
         );
 
         $now = new \DateTimeImmutable();
