@@ -177,7 +177,7 @@ class ChatController extends AbstractController
                 return $this->json([], 200);
             }
             try {
-                $afterDate = new \DateTimeImmutable($after);
+                $afterDate = new \DateTimeImmutable('-5 seconds');
                 error_log('After timestamp: ' . $afterDate->format('Y-m-d H:i:s'));
                 $messages = $this->messageRepository->findNewMessages(
                     $channel,
