@@ -32,7 +32,7 @@ class MessageRepository extends ServiceEntityRepository
 
         return $qb->getQuery()->getResult();
     }
-    public function findNewMessages(Channel $channel, \DateTime $after): array
+    public function findNewMessages(Channel $channel, \DateTimeImmutable $after): array
     {
         return $this->createQueryBuilder('m')
             ->where('m.channel = :channel')
