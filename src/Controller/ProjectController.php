@@ -592,20 +592,7 @@ class ProjectController extends AbstractController
             }
             $this->entityManager->remove($project);
             $this->entityManager->flush();
-
-            $this->entityManager->beginTransaction();
-
-            $this->notificationService->notifyProjectMembers(
-                sprintf(
-                    '%s deleted the project "%s"',
-                    $currentUser->getUsername(),
-                    $project->getName()
-                ),
-                'project_deleted',
-                '/projects',
-                $project,
-                ['projectName' => $project->getName()]
-            );
+            $this->entityManager->commit();
 
             return $this->json(['message' => 'Project deleted successfully'], JsonResponse::HTTP_OK);
         } catch (\Exception $e) {
