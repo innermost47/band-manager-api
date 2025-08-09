@@ -28,22 +28,23 @@ class Project
     #[Groups(['project', 'event:read'])]
     private ?string $description = null;
 
-    /**
-     * @var Collection<int, Song>
-     */
-    #[ORM\OneToMany(targetEntity: Song::class, mappedBy: 'project')]
-    #[Groups(['project', 'event:read'])]
-    #[MaxDepth(1)]
-    private Collection $songs;
 
     #[ORM\Column(length: 255, nullable: true)]
     #[Groups(['project', 'event:read'])]
     private ?string $profileImage = null;
 
     /**
+     * @var Collection<int, Song>
+     */
+    #[ORM\OneToMany(targetEntity: Song::class, mappedBy: 'project', cascade: ['remove'])]
+    #[Groups(['project', 'event:read'])]
+    #[MaxDepth(1)]
+    private Collection $songs;
+
+    /**
      * @var Collection<int, Gallery>
      */
-    #[ORM\OneToMany(targetEntity: Gallery::class, mappedBy: 'project')]
+    #[ORM\OneToMany(targetEntity: Gallery::class, mappedBy: 'project', cascade: ['remove'])]
     private Collection $galleries;
 
     /**
@@ -57,13 +58,13 @@ class Project
     /**
      * @var Collection<int, Invitation>
      */
-    #[ORM\OneToMany(targetEntity: Invitation::class, mappedBy: 'project')]
+    #[ORM\OneToMany(targetEntity: Invitation::class, mappedBy: 'project', cascade: ['remove'])]
     private Collection $invitations;
 
     /**
      * @var Collection<int, AdministrativeTask>
      */
-    #[ORM\OneToMany(targetEntity: AdministrativeTask::class, mappedBy: 'project')]
+    #[ORM\OneToMany(targetEntity: AdministrativeTask::class, mappedBy: 'project', cascade: ['remove'])]
     private Collection $administrativeTasks;
 
     #[ORM\Column(nullable: true)]
@@ -73,22 +74,22 @@ class Project
     /**
      * @var Collection<int, Notification>
      */
-    #[ORM\OneToMany(targetEntity: Notification::class, mappedBy: 'project')]
+    #[ORM\OneToMany(targetEntity: Notification::class, mappedBy: 'project', cascade: ['remove'])]
     private Collection $notifications;
 
     /**
      * @var Collection<int, Document>
      */
-    #[ORM\OneToMany(targetEntity: Document::class, mappedBy: 'project')]
+    #[ORM\OneToMany(targetEntity: Document::class, mappedBy: 'project', cascade: ['remove'])]
     private Collection $documents;
 
-    #[ORM\OneToMany(mappedBy: 'project', targetEntity: Event::class)]
+    #[ORM\OneToMany(mappedBy: 'project', targetEntity: Event::class, cascade: ['remove'])]
     private Collection $events;
 
     /**
      * @var Collection<int, Channel>
      */
-    #[ORM\OneToMany(targetEntity: Channel::class, mappedBy: 'project')]
+    #[ORM\OneToMany(targetEntity: Channel::class, mappedBy: 'project', cascade: ['remove'])]
     private Collection $channels;
 
     public function __construct()
