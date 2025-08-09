@@ -116,6 +116,8 @@ class NotificationService
         $notification->setFrontEndUrl($frontEndUrl);
         $notification->setProject($project);
         $notification->setMetadata($metadata);
+        $notification->setHasSeen(false);
+        $notification->setCreatedAt(new \DateTimeImmutable());
 
         $this->entityManager->persist($notification);
         $this->entityManager->flush();
